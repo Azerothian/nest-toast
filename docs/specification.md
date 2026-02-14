@@ -13,8 +13,10 @@ A NestJS library for plugin architecture, chain execution, and workflow orchestr
    - [Lifecycle hooks](#lifecycle-hooks)
    - [Dependency management](#dependency-management)
 5. [Chain Execution](#chain-execution)
+   - [ChainContextService](#chaincontextservice)
    - [ChainExecutorService](#chainexecutorservice)
    - [Waterfall execution](#waterfall-execution)
+   - [Cancellation](#cancellation)
    - [Parallel execution](#parallel-execution)
    - [Race and allSettled](#race-and-allsettled)
    - [Concurrency control](#concurrency-control)
@@ -141,13 +143,12 @@ export class OrderService {
   constructor(private readonly chainExecutor: ChainExecutorService) {}
 
   async processOrder(order: Order): Promise<Order> {
-    const { result } = await this.chainExecutor.waterfall(order, [
+    return this.chainExecutor.waterfall(order, [
       async (o) => this.validateOrder(o),
       async (o) => this.calculateTotals(o),
       async (o) => this.applyDiscounts(o),
       async (o) => this.processPayment(o),
     ]);
-    return result;
   }
 }
 ```
@@ -163,7 +164,7 @@ nest-toast provides three core capabilities:
 | Capability | Purpose | Primary Service |
 |------------|---------|-----------------|
 | **Plugin System** | Modular, discoverable components with metadata | `PluginRegistryService` |
-| **Chain Execution** | Sequential and parallel operation execution | `ChainExecutorService` |
+| **Chain Execution** | Sequential and parallel operation execution | `ChainExecutorService` + `ChainContextService` |
 | **Workflow Orchestration** | Event-driven, multi-step workflows | `WorkflowExecutorService` |
 
 ### Module Structure
@@ -198,6 +199,7 @@ export class MyFeatureModule {}
 
 // Services
 PluginRegistryService    // Discovery, metadata, dependency ordering
+ChainContextService      // Async context for chain state (cancellation, results)
 ChainExecutorService     // Waterfall/parallel/race execution
 WorkflowExecutorService  // Event-driven workflow orchestration
 
@@ -205,7 +207,7 @@ WorkflowExecutorService  // Event-driven workflow orchestration
 PluginMetadata
 PluginInstance
 ChainContext
-ChainHandler<T, R>
+ChainHandler<T>
 WorkflowStep
 ```
 
@@ -434,19 +436,57 @@ export class AuthModule {
 
 ## Chain Execution
 
-The `ChainExecutorService` provides utilities for executing operations in sequence or parallel with full control over execution flow.
+The chain execution system provides utilities for executing operations in sequence or parallel with full control over execution flow. It uses `AsyncLocalStorage` for context management, allowing any code in the call stack to access chain state without parameter threading.
 
-### ChainExecutorService
+### ChainContextService
 
-Inject the service to use chain execution patterns:
+The `ChainContextService` manages chain execution context using Node.js `AsyncLocalStorage`. This allows any service in the call stack to check or set cancellation state without passing context through parameters.
 
 ```typescript
 import { Injectable } from '@nestjs/common';
-import { ChainExecutorService, ChainContext } from 'nest-toast';
+import { ChainContextService } from 'nest-toast';
+
+@Injectable()
+export class ValidatorService {
+  constructor(private readonly chainContext: ChainContextService) {}
+
+  async validate(order: Order): Promise<Order> {
+    if (!order.items.length) {
+      // Cancel from anywhere in the call stack
+      this.chainContext.cancel(new Error('Order has no items'));
+      return order;
+    }
+    return order;
+  }
+}
+```
+
+#### Context API
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `run` | `<T>(fn: () => Promise<T>): Promise<T>` | Execute function within a new context |
+| `cancel` | `(reason?: Error): void` | Mark the current chain as cancelled |
+| `isCancelled` | `(): boolean` | Check if the current chain is cancelled |
+| `getContext` | `(): ChainContext \| undefined` | Get the current context (if any) |
+| `getReason` | `(): Error \| undefined` | Get the cancellation reason |
+| `setResult` | `(key: string, value: any): void` | Store an intermediate result |
+| `getResult` | `<T>(key: string): T \| undefined` | Retrieve an intermediate result |
+
+### ChainExecutorService
+
+The executor runs handlers within a context managed by `ChainContextService`:
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import { ChainExecutorService, ChainContextService } from 'nest-toast';
 
 @Injectable()
 export class MyService {
-  constructor(private readonly chainExecutor: ChainExecutorService) {}
+  constructor(
+    private readonly chainExecutor: ChainExecutorService,
+    private readonly chainContext: ChainContextService,
+  ) {}
 }
 ```
 
@@ -456,55 +496,118 @@ Execute handlers in sequence, passing each result to the next:
 
 ```typescript
 async processData(input: Data): Promise<Data> {
-  const { result, context } = await this.chainExecutor.waterfall(input, [
-    async (data, ctx) => {
+  const result = await this.chainExecutor.waterfall(input, [
+    async (data) => {
       // Transform step 1
       return { ...data, validated: true };
     },
-    async (data, ctx) => {
+    async (data) => {
       // Transform step 2
       return { ...data, enriched: true };
     },
-    async (data, ctx) => {
+    async (data) => {
       // Transform step 3
-      if (shouldCancel) {
-        ctx.cancelled = true;
-        return data;
-      }
       return { ...data, processed: true };
     },
   ]);
-
-  // Access intermediate results
-  const step1Result = context.results.get('step_0');
 
   return result;
 }
 ```
 
-#### Cancellation Support
+### Cancellation
 
-Handlers can cancel the chain by setting `context.cancelled = true`:
+Cancellation uses `AsyncLocalStorage`, so any service in the call stack can cancel - no need to pass context through every function.
+
+#### Cancel from a Nested Service
 
 ```typescript
-const { result, context } = await this.chainExecutor.waterfall(data, [
-  async (value, ctx) => {
-    if (!isValid(value)) {
-      ctx.cancelled = true;
-      return { error: 'Invalid input' };
-    }
-    return value;
-  },
-  async (value, ctx) => {
-    // This won't execute if cancelled
-    return transform(value);
-  },
-]);
+// services/validator.service.ts
+@Injectable()
+export class ValidatorService {
+  constructor(private readonly chainContext: ChainContextService) {}
 
-if (context.cancelled) {
-  throw new Error(result.error);
+  async validateOrder(order: Order): Promise<Order> {
+    const errors = await this.runValidations(order);
+
+    if (errors.length > 0) {
+      // Cancel the chain from deep in the call stack
+      this.chainContext.cancel(new ValidationError(errors));
+      return order;
+    }
+
+    return order;
+  }
+}
+
+// services/order.service.ts
+@Injectable()
+export class OrderService {
+  constructor(
+    private readonly chainExecutor: ChainExecutorService,
+    private readonly chainContext: ChainContextService,
+    private readonly validator: ValidatorService,
+  ) {}
+
+  async processOrder(order: Order): Promise<Order> {
+    const result = await this.chainExecutor.waterfall(order, [
+      (o) => this.validator.validateOrder(o),  // Can cancel internally
+      (o) => this.calculateTotals(o),          // Skipped if cancelled
+      (o) => this.processPayment(o),           // Skipped if cancelled
+    ]);
+
+    // Check if cancelled after execution
+    if (this.chainContext.isCancelled()) {
+      throw this.chainContext.getReason();
+    }
+
+    return result;
+  }
 }
 ```
+
+#### Cancel with Error Handling
+
+```typescript
+async processWithErrorHandling(data: Data): Promise<Result> {
+  const result = await this.chainExecutor.waterfall(data, [
+    async (d) => this.step1(d),
+    async (d) => this.step2(d),
+    async (d) => this.step3(d),
+  ]);
+
+  if (this.chainContext.isCancelled()) {
+    const reason = this.chainContext.getReason();
+    this.logger.error('Chain cancelled', reason);
+    throw reason;
+  }
+
+  return result;
+}
+```
+
+#### Store Intermediate Results
+
+```typescript
+async processWithResults(input: Data): Promise<ProcessedData> {
+  const result = await this.chainExecutor.waterfall(input, [
+    async (data) => {
+      const validated = await this.validate(data);
+      this.chainContext.setResult('validation', validated);
+      return validated;
+    },
+    async (data) => {
+      const enriched = await this.enrich(data);
+      this.chainContext.setResult('enrichment', enriched);
+      return enriched;
+    },
+  ]);
+
+  // Access intermediate results
+  const validationResult = this.chainContext.getResult('validation');
+
+  return result;
+}
 
 ### Parallel Execution
 
@@ -814,15 +917,27 @@ interface PluginMetadata {
 | `getPluginMetadata` | `(name: string): PluginMetadata \| undefined` | Get plugin metadata |
 | `getInitializationOrder` | `(): string[]` | Get topologically sorted names |
 
+#### ChainContextService
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `run` | `<T>(fn: () => Promise<T>): Promise<T>` | Execute within new context |
+| `cancel` | `(reason?: Error): void` | Cancel the current chain |
+| `isCancelled` | `(): boolean` | Check cancellation status |
+| `getContext` | `(): ChainContext \| undefined` | Get current context |
+| `getReason` | `(): Error \| undefined` | Get cancellation reason |
+| `setResult` | `(key: string, value: any): void` | Store intermediate result |
+| `getResult` | `<T>(key: string): T \| undefined` | Retrieve intermediate result |
+
 #### ChainExecutorService
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `waterfall` | `<T>(initial: T, handlers: ChainHandler<T, T>[]): Promise<ChainResult<T>>` | Sequential execution |
-| `parallel` | `<T, R>(input: T, handlers: ChainHandler<T, R>[], options?): Promise<R[]>` | Concurrent execution |
-| `race` | `<T, R>(input: T, handlers: ChainHandler<T, R>[]): Promise<R>` | First result wins |
-| `allSettled` | `<T, R>(input: T, handlers: ChainHandler<T, R>[]): Promise<PromiseSettledResult<R>[]>` | All results with status |
-| `pipeline` | `<TIn, TOut>(input: TIn, stages: Stage[]): Promise<PipelineResult<TOut>>` | Named stages with timing |
+| `waterfall` | `<T>(initial: T, handlers: ChainHandler<T>[]): Promise<T>` | Sequential execution |
+| `parallel` | `<T, R>(input: T, handlers: ((input: T) => Promise<R>)[], options?): Promise<R[]>` | Concurrent execution |
+| `race` | `<T, R>(input: T, handlers: ((input: T) => Promise<R>)[]): Promise<R>` | First result wins |
+| `allSettled` | `<T, R>(input: T, handlers: ((input: T) => Promise<R>)[]): Promise<PromiseSettledResult<R>[]>` | All results with status |
+| `pipeline` | `<TIn, TOut>(input: TIn, stages: PipelineStage[]): Promise<PipelineResult<TOut>>` | Named stages with timing |
 
 #### WorkflowExecutorService
 
@@ -833,23 +948,18 @@ interface PluginMetadata {
 ### Interfaces
 
 ```typescript
-// Chain handler function type
-type ChainHandler<T, R> = (input: T, context?: ChainContext) => Promise<R>;
+// Chain handler function type (no context parameter - use ChainContextService)
+type ChainHandler<T> = (input: T) => Promise<T>;
 
-// Chain execution context
+// Chain execution context (managed by AsyncLocalStorage)
 interface ChainContext {
   cancelled: boolean;
+  reason?: Error;
   results: Map<string, any>;
 }
 
-// Chain execution result
-interface ChainResult<T> {
-  result: T;
-  context: ChainContext;
-}
-
 // Pipeline stage definition
-interface PipelineStage<T> {
+interface PipelineStage<T = any> {
   name: string;
   handler: (data: T) => Promise<T>;
 }
@@ -1142,7 +1252,7 @@ nest-toast provides a comprehensive toolkit for building modular NestJS applicat
 
 1. **Plugin System** - `@Plugin()` decorator and `PluginRegistryService` for discoverable, metadata-rich components with dependency management
 
-2. **Chain Execution** - `ChainExecutorService` for waterfall, parallel, race, and pipeline execution patterns with cancellation and concurrency control
+2. **Chain Execution** - `ChainExecutorService` and `ChainContextService` for waterfall, parallel, race, and pipeline execution patterns with `AsyncLocalStorage`-based cancellation (no context parameter threading)
 
 3. **Workflow Orchestration** - `WorkflowExecutorService` for event-driven, multi-step workflows with automatic event emission
 
