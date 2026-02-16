@@ -447,145 +447,6 @@ export class MyPlugin
 }
 ```
 
-### Event Handling with Multiple Plugins
-
-When multiple plugins register handlers for the same event, the system executes them as a chain in dependency graph order, where each handler receives the result from the previous handler.
-
-#### Execution Order
-
-Event handlers are executed in the order determined by the plugin dependency graph. Plugins with dependencies execute after their dependencies:
-
-```typescript
-@Plugin({
-  name: 'logger',
-  version: '1.0.0',
-})
-@Injectable()
-export class LoggerPlugin {
-  @OnEvent('user:created')
-  async handleUserCreated(data: any): Promise<any> {
-    console.log('Logging user creation:', data);
-    return { ...data, logged: true };
-  }
-}
-
-@Plugin({
-  name: 'notification',
-  version: '1.0.0',
-  dependencies: ['logger'], // Executes after logger
-})
-@Injectable()
-export class NotificationPlugin {
-  @OnEvent('user:created')
-  async handleUserCreated(data: any): Promise<any> {
-    // Receives result from logger handler
-    console.log('Data includes logged:', data.logged); // true
-    await this.sendEmail(data);
-    return { ...data, notified: true };
-  }
-}
-```
-
-#### Result Chaining
-
-Each event handler in the chain receives the result from the previous handler. This enables transformation pipelines where each plugin can enrich or modify the data:
-
-```typescript
-// Emit event with initial data
-this.eventEmitter.emit('user:created', { userId: 1, email: 'user@example.com' });
-
-// Execution flow:
-// 1. LoggerPlugin receives:  { userId: 1, email: 'user@example.com' }
-//    Returns:                { userId: 1, email: 'user@example.com', logged: true }
-//
-// 2. NotificationPlugin receives: { userId: 1, email: 'user@example.com', logged: true }
-//    Returns:                     { userId: 1, email: 'user@example.com', logged: true, notified: true }
-//
-// Final result: { userId: 1, email: 'user@example.com', logged: true, notified: true }
-```
-
-#### Cancellation
-
-Any handler in the chain can cancel further processing by throwing an error:
-
-```typescript
-@Plugin({
-  name: 'validator',
-  version: '1.0.0',
-})
-@Injectable()
-export class ValidatorPlugin {
-  @OnEvent('order:created')
-  async handleOrderCreated(data: OrderData): Promise<OrderData> {
-    if (!this.isValid(data)) {
-      // Cancel the chain - subsequent handlers won't execute
-      throw new ValidationError('Order validation failed');
-    }
-    return { ...data, validated: true };
-  }
-}
-
-@Plugin({
-  name: 'payment',
-  version: '1.0.0',
-  dependencies: ['validator'],
-})
-@Injectable()
-export class PaymentPlugin {
-  @OnEvent('order:created')
-  async handleOrderCreated(data: OrderData): Promise<OrderData> {
-    // Won't execute if validator throws
-    await this.processPayment(data);
-    return { ...data, paid: true };
-  }
-}
-```
-
-#### Immediate Results and Early Termination
-
-A handler can mark processing as finished and return an immediate result to skip remaining handlers:
-
-```typescript
-@Plugin({
-  name: 'cache',
-  version: '1.0.0',
-})
-@Injectable()
-export class CachePlugin {
-  @OnEvent('data:fetch')
-  async handleDataFetch(request: FetchRequest): Promise<any> {
-    const cached = await this.cache.get(request.key);
-    if (cached) {
-      // Return result marked as finished - skip remaining handlers
-      return {
-        data: cached,
-        fromCache: true,
-        __finished: true, // Special marker to terminate chain
-      };
-    }
-    // Continue to next handler
-    return request;
-  }
-}
-
-@Plugin({
-  name: 'database',
-  version: '1.0.0',
-  dependencies: ['cache'],
-})
-@Injectable()
-export class DatabasePlugin {
-  @OnEvent('data:fetch')
-  async handleDataFetch(request: FetchRequest): Promise<any> {
-    // Only executes if cache handler didn't return __finished: true
-    const data = await this.db.query(request.key);
-    return { data, fromCache: false };
-  }
-}
-```
-
-When a handler returns an object with `__finished: true`, the chain terminates immediately and that result is used as the final value.
-
 ### Dependency Management
 
 #### Required Dependencies
@@ -1356,28 +1217,45 @@ This emits the following events:
 
 ### Listening to Workflow Events
 
+Workflow events come in two types:
+
+1. **Workflow Lifecycle Events** - Standard NestJS events emitted by WorkflowExecutorService
+2. **Custom Step Events** - ChainEvents emitted from workflow steps
+
 ```typescript
 import { Injectable } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
+import { OnChainEvent } from 'nest-toast';
 
 @Injectable()
 export class OrderNotificationService {
-  @OnEvent('order:validated')
-  async handleOrderValidated(payload: { data: Order }): Promise<void> {
-    await this.sendConfirmationEmail(payload.data);
+  // Custom ChainEvents from workflow steps (use @OnChainEvent)
+  @OnChainEvent('order:validated')
+  async handleOrderValidated(order: Order): Promise<Order> {
+    await this.sendConfirmationEmail(order);
+    return order;
   }
 
-  @OnEvent('order:paid')
-  async handleOrderPaid(payload: { data: Order }): Promise<void> {
-    await this.sendPaymentReceipt(payload.data);
+  @OnChainEvent('order:paid')
+  async handleOrderPaid(order: Order): Promise<Order> {
+    await this.sendPaymentReceipt(order);
+    return order;
   }
 
+  // Workflow lifecycle events (use @OnEvent)
   @OnEvent('workflow:order-processing:completed')
-  async handleOrderCompleted(payload: { data: Order }): Promise<void> {
+  async handleWorkflowCompleted(payload: { data: Order }): Promise<void> {
     await this.notifyWarehouse(payload.data);
+  }
+
+  @OnEvent('workflow:order-processing:started')
+  async handleWorkflowStarted(payload: { workflowName: string }): Promise<void> {
+    this.logger.log(`Workflow ${payload.workflowName} started`);
   }
 }
 ```
+
+> **Note**: Custom events emitted via `emitEvent` in workflow steps are ChainEvents and should use `@OnChainEvent`. Workflow lifecycle events (started, completed, step:started, step:completed) are standard NestJS events and use `@OnEvent`.
 
 ### Working with ChainEvent
 
@@ -2367,6 +2245,8 @@ export class AppModule {}
 ```
 
 ### Event-Driven Architecture
+
+> **Note**: This section demonstrates standard NestJS event patterns using `@OnEvent` from `@nestjs/event-emitter`. For plugin handler chains with dependency-ordered execution, use `@OnChainEvent` as documented in the [Workflow Orchestration](#working-with-chainevent) section.
 
 ```typescript
 // Setting up event emission
