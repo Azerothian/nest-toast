@@ -13,6 +13,7 @@ A NestJS library for plugin architecture, chain execution, and workflow orchestr
    - [PluginRegistryService](#pluginregistryservice)
    - [Lifecycle hooks](#lifecycle-hooks)
    - [Dependency management](#dependency-management)
+   - [Dependency resolution and topological sorting](#dependency-resolution-and-topological-sorting)
 6. [Chain Execution](#chain-execution)
    - [ChainContextService](#chaincontextservice)
    - [ChainExecutorService](#chainexecutorservice)
@@ -674,6 +675,278 @@ export class AuthModule {
   }
 }
 ```
+
+#### Dependency Resolution and Topological Sorting
+
+nest-toast uses **topological sorting** with **Kahn's algorithm** to determine the correct order for plugin initialization and @OnChainEvent handler execution. This ensures dependencies are always initialized/executed before their dependents.
+
+**Why Topological Sorting?**
+
+When you have plugins with dependencies like this:
+- Plugin A depends on nothing
+- Plugin B depends on A
+- Plugin C depends on A and B
+- Plugin D depends on C
+
+The system must determine the correct initialization order: `A → B → C → D`
+
+**Algorithm: Kahn's Algorithm (BFS-based)**
+
+```typescript
+class DependencyGraph {
+  private adjacencyList: Map<string, string[]>;
+
+  constructor() {
+    this.adjacencyList = new Map<string, string[]>();
+  }
+
+  addVertex(vertex: string): void {
+    if (!this.adjacencyList.has(vertex)) {
+      this.adjacencyList.set(vertex, []);
+    }
+  }
+
+  addEdge(from: string, to: string): void {
+    if (this.adjacencyList.has(from)) {
+      this.adjacencyList.get(from)?.push(to);
+    } else {
+      throw new Error(`Vertex ${from} does not exist in the graph.`);
+    }
+  }
+
+  topologicalSort(): string[] {
+    const indegree: Map<string, number> = new Map();
+    const queue: string[] = [];
+    const result: string[] = [];
+
+    // Calculate indegree for each vertex
+    for (const [vertex, neighbors] of this.adjacencyList) {
+      indegree.set(vertex, indegree.get(vertex) || 0);
+      for (const neighbor of neighbors) {
+        indegree.set(neighbor, (indegree.get(neighbor) || 0) + 1);
+      }
+    }
+
+    // Initialize queue with vertices having indegree of 0
+    for (const vertex of indegree.keys()) {
+      if (indegree.get(vertex) === 0) {
+        queue.push(vertex);
+      }
+    }
+
+    // Topological sort using Kahn's algorithm
+    while (queue.length > 0) {
+      const vertex = queue.shift()!;
+      result.push(vertex);
+
+      const neighbors = this.adjacencyList.get(vertex) || [];
+      for (const neighbor of neighbors) {
+        indegree.set(neighbor, indegree.get(neighbor)! - 1);
+        if (indegree.get(neighbor) === 0) {
+          queue.push(neighbor);
+        }
+      }
+    }
+
+    // Cycle detection
+    if (result.length !== this.adjacencyList.size) {
+      const missingVertices = Array.from(this.adjacencyList.keys())
+        .filter((vertex) => !result.includes(vertex));
+
+      throw new DependencyCycleError({
+        message: 'Circular dependency detected',
+        result,
+        adjacencyList: this.adjacencyList,
+        missingVertices,
+      });
+    }
+
+    return result;
+  }
+}
+```
+
+**How It Works:**
+
+1. **Build Adjacency List**: Create a graph where each plugin points to its dependencies
+2. **Calculate Indegree**: Count how many plugins depend on each plugin
+3. **Initialize Queue**: Start with plugins that have no dependencies (indegree = 0)
+4. **Process Queue**:
+   - Remove a plugin from the queue
+   - Add it to the result (this is the next plugin to initialize)
+   - Decrease indegree of its dependents
+   - Add dependents with indegree 0 to the queue
+5. **Cycle Detection**: If not all plugins are in the result, there's a circular dependency
+
+**Plugin Initialization Order**
+
+The `PluginRegistryService.getInitializationOrder()` method uses topological sort to determine initialization order:
+
+```typescript
+// Example plugin dependencies
+@Plugin({ name: 'config', version: '1.0.0' })
+export class ConfigPlugin {}
+
+@Plugin({ name: 'database', version: '1.0.0', dependencies: ['config'] })
+export class DatabasePlugin {}
+
+@Plugin({ name: 'auth', version: '1.0.0', dependencies: ['database', 'config'] })
+export class AuthPlugin {}
+
+@Plugin({ name: 'api', version: '1.0.0', dependencies: ['auth'] })
+export class ApiPlugin {}
+
+// Graph representation:
+// config → database → auth → api
+//   ↓                   ↑
+//   └───────────────────┘
+
+// Topological sort result:
+// ['config', 'database', 'auth', 'api']
+```
+
+**@OnChainEvent Execution Order**
+
+When multiple plugins register handlers for the same ChainEvent, they execute in dependency order:
+
+```typescript
+@Plugin({ name: 'logger', version: '1.0.0' })
+export class LoggerPlugin {
+  @OnChainEvent('order:created')
+  async handleOrderCreated(order: Order): Promise<Order> {
+    console.log('Logger: order created');
+    return { ...order, logged: true };
+  }
+}
+
+@Plugin({ name: 'validator', version: '1.0.0', dependencies: ['logger'] })
+export class ValidatorPlugin {
+  @OnChainEvent('order:created')
+  async handleOrderCreated(order: Order): Promise<Order> {
+    // Executes AFTER logger (receives { ...order, logged: true })
+    console.log('Validator: validating order');
+    return { ...order, validated: true };
+  }
+}
+
+@Plugin({ name: 'payment', version: '1.0.0', dependencies: ['validator'] })
+export class PaymentPlugin {
+  @OnChainEvent('order:created')
+  async handleOrderCreated(order: Order): Promise<Order> {
+    // Executes AFTER validator (receives { ...order, logged: true, validated: true })
+    console.log('Payment: processing payment');
+    return { ...order, paid: true };
+  }
+}
+
+// Execution order: logger → validator → payment
+// Final result: { ...order, logged: true, validated: true, paid: true }
+```
+
+**Cycle Detection**
+
+Circular dependencies are detected and reported with detailed error information:
+
+```typescript
+// BAD: Circular dependency
+@Plugin({ name: 'A', version: '1.0.0', dependencies: ['B'] })
+export class PluginA {}
+
+@Plugin({ name: 'B', version: '1.0.0', dependencies: ['C'] })
+export class PluginB {}
+
+@Plugin({ name: 'C', version: '1.0.0', dependencies: ['A'] })  // Cycle!
+export class PluginC {}
+
+// Error thrown during initialization:
+// DependencyCycleError: Circular dependency detected
+// Missing vertices: ['A', 'B', 'C']
+// Result: []
+// Adjacency list: { A: ['B'], B: ['C'], C: ['A'] }
+```
+
+**Error Handling**
+
+```typescript
+export interface DependencyCycleErrorOpts {
+  message: string;
+  result: string[];
+  adjacencyList: Map<string, string[]>;
+  missingVertices: string[];
+}
+
+export class DependencyCycleError extends Error {
+  result: string[];
+  adjacencyList: Map<string, string[]>;
+  missingVertices: string[];
+
+  constructor(opts: DependencyCycleErrorOpts) {
+    super(opts.message);
+    this.name = 'DependencyCycleError';
+    this.result = opts.result;
+    this.adjacencyList = opts.adjacencyList;
+    this.missingVertices = opts.missingVertices;
+  }
+}
+```
+
+**Complex Dependency Graph Example**
+
+```typescript
+// Real-world example with multiple dependency paths
+@Plugin({ name: 'config', version: '1.0.0' })
+export class ConfigPlugin {}
+
+@Plugin({ name: 'logger', version: '1.0.0', dependencies: ['config'] })
+export class LoggerPlugin {}
+
+@Plugin({ name: 'database', version: '1.0.0', dependencies: ['config', 'logger'] })
+export class DatabasePlugin {}
+
+@Plugin({ name: 'cache', version: '1.0.0', dependencies: ['config'] })
+export class CachePlugin {}
+
+@Plugin({ name: 'auth', version: '1.0.0', dependencies: ['database', 'cache'] })
+export class AuthPlugin {}
+
+@Plugin({ name: 'api', version: '1.0.0', dependencies: ['auth', 'logger'] })
+export class ApiPlugin {}
+
+// Dependency graph:
+//              config
+//             /  |  \
+//           /    |    \
+//      logger  cache  (direct to database)
+//         |      |      |
+//         |      |   database
+//         |      |   /
+//         |    auth
+//         |   /
+//        api
+
+// Valid topological sort (one possible order):
+// ['config', 'logger', 'cache', 'database', 'auth', 'api']
+
+// Or alternatively:
+// ['config', 'cache', 'logger', 'database', 'auth', 'api']
+
+// Both are valid - the algorithm guarantees dependencies come before dependents
+```
+
+**Best Practices**
+
+1. **Avoid Circular Dependencies**: Design plugins to have clear dependency hierarchies
+2. **Use Optional Dependencies**: When a dependency is not critical, mark it as optional
+3. **Keep Dependency Chains Short**: Deep dependency chains can make debugging difficult
+4. **Group Related Plugins**: Plugins that work together should have consistent naming
+5. **Document Dependencies**: Comment why each dependency is needed
+
+**Performance Considerations**
+
+- **Time Complexity**: O(V + E) where V = vertices (plugins), E = edges (dependencies)
+- **Space Complexity**: O(V + E) for adjacency list storage
+- **Initialization**: Topological sort runs once during application startup
+- **Event Execution**: Handler order is cached, no runtime sorting needed
 
 ---
 
