@@ -1,4 +1,4 @@
-# nest-toast
+# @azerothian/nestjs-chained
 
 A NestJS library for plugin architecture, chain execution, and workflow orchestration.
 
@@ -45,7 +45,7 @@ A NestJS library for plugin architecture, chain execution, and workflow orchestr
 ## Installation
 
 ```bash
-npm install nest-toast
+npm install @azerothian/nestjs-chained
 ```
 
 ### Peer Dependencies
@@ -67,7 +67,7 @@ npm install @nestjs/common @nestjs/core @nestjs/config @nestjs/event-emitter
 
 ## Development
 
-nest-toast is developed using TypeScript and Turborepo for monorepo management, enabling modular architecture and efficient build orchestration.
+@azerothian/nestjs-chained is developed using TypeScript and Turborepo for monorepo management, enabling modular architecture and efficient build orchestration.
 
 ### Technology Stack
 
@@ -82,7 +82,7 @@ nest-toast is developed using TypeScript and Turborepo for monorepo management, 
 ### Monorepo Structure
 
 ```
-nest-toast/
+nestjs-chained/
 ├── packages/
 │   ├── core/           # Core library with plugin system
 │   │   ├── src/
@@ -118,7 +118,7 @@ npm install
 npm run build
 
 # Build specific package
-npm run build --filter=@nest-toast/core
+npm run build --filter=@azerothian/nestjs-chained-core
 
 # Run tests
 npm test
@@ -172,7 +172,7 @@ The `turbo.json` file defines the build pipeline:
 ```typescript
 // app.module.ts
 import { Module } from '@nestjs/common';
-import { ToastModule } from 'nest-toast';
+import { ToastModule } from '@azerothian/nestjs-chained';
 
 @Module({
   imports: [
@@ -190,7 +190,7 @@ export class AppModule {}
 ```typescript
 // plugins/database/database.plugin.ts
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { Plugin } from 'nest-toast';
+import { Plugin } from '@azerothian/nestjs-chained';
 import { ConfigService } from '@nestjs/config';
 
 @Plugin({
@@ -223,7 +223,7 @@ export class DatabasePlugin implements OnModuleInit, OnModuleDestroy {
 ```typescript
 // plugins/database/database.module.ts
 import { Module } from '@nestjs/common';
-import { ToastModule } from 'nest-toast';
+import { ToastModule } from '@azerothian/nestjs-chained';
 import { DatabasePlugin } from './database.plugin';
 
 @Module({
@@ -239,7 +239,7 @@ export class DatabaseModule {}
 ```typescript
 // services/order.service.ts
 import { Injectable } from '@nestjs/common';
-import { ChainExecutorService } from 'nest-toast';
+import { ChainExecutorService } from '@azerothian/nestjs-chained';
 
 @Injectable()
 export class OrderService {
@@ -262,7 +262,7 @@ export class OrderService {
 
 ### Architecture Overview
 
-nest-toast provides three core capabilities:
+@azerothian/nestjs-chained provides three core capabilities:
 
 | Capability | Purpose | Primary Service |
 |------------|---------|-----------------|
@@ -274,7 +274,7 @@ nest-toast provides three core capabilities:
 
 ```typescript
 // Root Module
-import { ToastModule } from 'nest-toast';
+import { ToastModule } from '@azerothian/nestjs-chained';
 
 @Module({
   imports: [
@@ -327,7 +327,7 @@ The plugin system enables modular, discoverable components with rich metadata, d
 Mark a class as a discoverable plugin with metadata:
 
 ```typescript
-import { Plugin } from 'nest-toast';
+import { Plugin } from '@azerothian/nestjs-chained';
 
 @Plugin({
   name: 'user-service',
@@ -360,7 +360,7 @@ The registry provides runtime access to all discovered plugins:
 
 ```typescript
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import { PluginRegistryService, PluginMetadata } from 'nest-toast';
+import { PluginRegistryService, PluginMetadata } from '@azerothian/nestjs-chained';
 
 @Injectable()
 export class MyService {
@@ -417,7 +417,7 @@ import {
   OnModuleDestroy,
   BeforeApplicationShutdown,
 } from '@nestjs/common';
-import { Plugin } from 'nest-toast';
+import { Plugin } from '@azerothian/nestjs-chained';
 
 @Plugin({ name: 'my-plugin', version: '1.0.0' })
 @Injectable()
@@ -508,7 +508,7 @@ Use dynamic modules for alternative implementations:
 ```typescript
 // plugins/auth/auth.module.ts
 import { Module, DynamicModule } from '@nestjs/common';
-import { ToastModule } from 'nest-toast';
+import { ToastModule } from '@azerothian/nestjs-chained';
 
 @Module({})
 export class AuthModule {
@@ -539,7 +539,7 @@ export class AuthModule {
 
 #### Dependency Resolution and Topological Sorting
 
-nest-toast uses **topological sorting** with **Kahn's algorithm** to determine the correct order for plugin initialization and @OnChainEvent handler execution. This ensures dependencies are always initialized/executed before their dependents.
+@azerothian/nestjs-chained uses **topological sorting** with **Kahn's algorithm** to determine the correct order for plugin initialization and @OnChainEvent handler execution. This ensures dependencies are always initialized/executed before their dependents.
 
 **Why Topological Sorting?**
 
@@ -817,7 +817,7 @@ The chain execution system provides utilities for executing operations in sequen
 
 **Key Innovation: AsyncLocalStorage for Context Management**
 
-Unlike traditional approaches that require passing context objects through every function parameter, nest-toast uses Node.js `AsyncLocalStorage` to maintain chain state (cancellation, intermediate results) accessible from anywhere in the call stack. This means:
+Unlike traditional approaches that require passing context objects through every function parameter, @azerothian/nestjs-chained uses Node.js `AsyncLocalStorage` to maintain chain state (cancellation, intermediate results) accessible from anywhere in the call stack. This means:
 
 - ✅ **No parameter threading**: Services deep in your call stack can cancel or check status
 - ✅ **Cleaner interfaces**: Handler functions only receive and return data
@@ -863,7 +863,7 @@ async function deepValidation(order: Order, context: Context): Promise<Order> {
 }
 ```
 
-**✅ nest-toast Pattern (AsyncLocalStorage)**
+**✅ @azerothian/nestjs-chained Pattern (AsyncLocalStorage)**
 ```typescript
 // Clean interfaces - no context parameter needed
 async function processOrder(order: Order): Promise<Order> {
@@ -898,7 +898,7 @@ export class ValidatorService {
 
 ```typescript
 import { Injectable } from '@nestjs/common';
-import { ChainContextService } from 'nest-toast';
+import { ChainContextService } from '@azerothian/nestjs-chained';
 
 @Injectable()
 export class ValidatorService {
@@ -933,7 +933,7 @@ The executor runs handlers within a context managed by `ChainContextService`:
 
 ```typescript
 import { Injectable } from '@nestjs/common';
-import { ChainExecutorService, ChainContextService } from 'nest-toast';
+import { ChainExecutorService, ChainContextService } from '@azerothian/nestjs-chained';
 
 @Injectable()
 export class MyService {
@@ -1171,7 +1171,7 @@ The `WorkflowExecutorService` combines chain execution with event emission for c
 
 ```typescript
 import { Injectable } from '@nestjs/common';
-import { WorkflowExecutorService } from 'nest-toast';
+import { WorkflowExecutorService } from '@azerothian/nestjs-chained';
 
 @Injectable()
 export class OrderService {
@@ -1225,7 +1225,7 @@ Workflow events come in two types:
 ```typescript
 import { Injectable } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
-import { OnChainEvent } from 'nest-toast';
+import { OnChainEvent } from '@azerothian/nestjs-chained';
 
 @Injectable()
 export class OrderNotificationService {
@@ -1266,7 +1266,7 @@ The `ChainEvent` interface provides a standardized structure for workflow and ch
 The `ChainEvent` interface defines the structure used internally by the framework and when emitting events via factory functions:
 
 ```typescript
-import { ChainEvent } from 'nest-toast';
+import { ChainEvent } from '@azerothian/nestjs-chained';
 
 const event: ChainEvent<Order> = {
   name: 'order:validated',
@@ -1350,7 +1350,7 @@ Event listeners use the `@OnChainEvent` decorator and receive the data payload d
 
 ```typescript
 import { Injectable } from '@nestjs/common';
-import { OnChainEvent } from 'nest-toast';
+import { OnChainEvent } from '@azerothian/nestjs-chained';
 
 @Injectable()
 export class OrderAnalyticsService {
@@ -1382,7 +1382,7 @@ When multiple plugins register handlers for the same ChainEvent, the system exec
 Plugins with dependencies execute after their dependencies:
 
 ```typescript
-import { Plugin, OnChainEvent } from 'nest-toast';
+import { Plugin, OnChainEvent } from '@azerothian/nestjs-chained';
 
 @Plugin({
   name: 'logger',
@@ -1490,7 +1490,7 @@ export class FulfillmentPlugin {
 A handler can mark processing as finished using `ChainContextService.finish()` to skip remaining handlers. The returned data from that handler becomes the final result:
 
 ```typescript
-import { ChainContextService } from 'nest-toast';
+import { ChainContextService } from '@azerothian/nestjs-chained';
 
 @Plugin({
   name: 'cache-checker',
@@ -1547,7 +1547,7 @@ When a handler calls `this.chainContext.finish()`, the chain terminates immediat
 Use the ChainEvent metadata (accessed via `ChainContextService`) to filter and route events:
 
 ```typescript
-import { ChainContextService } from 'nest-toast';
+import { ChainContextService } from '@azerothian/nestjs-chained';
 
 @Injectable()
 export class CriticalEventHandler {
@@ -1771,8 +1771,8 @@ ToastModule.forRoot({
   imports: [
     ToastModule.forRoot({
       pluginPaths: [
-        'nest-toast-logging',
-        'nest-toast-metrics',
+        '@azerothian/nestjs-chained-logging',
+        '@azerothian/nestjs-chained-metrics',
         '@mycompany/toast-plugins',
       ],
     }),
@@ -1810,7 +1810,7 @@ File paths can be relative (resolved from the application root) or absolute.
     ToastModule.forRoot({
       pluginPaths: [
         // Production plugins from npm
-        'nest-toast-auth',
+        '@azerothian/nestjs-chained-auth',
         '@company/production-plugins',
 
         // Development plugins from local files
@@ -1865,7 +1865,7 @@ export default registerAs('database', () => ({
 ```typescript
 // app.module.ts
 import { ConfigModule } from '@nestjs/config';
-import { ToastModule } from 'nest-toast';
+import { ToastModule } from '@azerothian/nestjs-chained';
 import databaseConfig from './config/database.config';
 
 @Module({
@@ -1923,7 +1923,7 @@ Marks a method as a ChainEvent handler. When multiple plugins register handlers 
 
 ```typescript
 import { Injectable } from '@nestjs/common';
-import { OnChainEvent } from 'nest-toast';
+import { OnChainEvent } from '@azerothian/nestjs-chained';
 
 @Injectable()
 export class OrderHandler {
@@ -2064,7 +2064,7 @@ Load plugins based on environment or configuration:
 ```typescript
 // app.module.ts
 import { Module, DynamicModule } from '@nestjs/common';
-import { ToastModule } from 'nest-toast';
+import { ToastModule } from '@azerothian/nestjs-chained';
 
 @Module({})
 export class AppModule {
@@ -2113,7 +2113,7 @@ Validate that incompatible plugins are not loaded together:
 
 // Manual validation example
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
-import { PluginRegistryService } from 'nest-toast';
+import { PluginRegistryService } from '@azerothian/nestjs-chained';
 
 @Injectable()
 export class CompatibilityValidatorService implements OnModuleInit {
@@ -2148,7 +2148,7 @@ Create modules that configure themselves based on options:
 
 ```typescript
 import { Module, DynamicModule } from '@nestjs/common';
-import { ToastModule } from 'nest-toast';
+import { ToastModule } from '@azerothian/nestjs-chained';
 
 export interface CacheModuleOptions {
   provider: 'redis' | 'memcached' | 'memory';
@@ -2220,7 +2220,7 @@ bootstrap();
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
-import { ToastModule } from 'nest-toast';
+import { ToastModule } from '@azerothian/nestjs-chained';
 import { DatabaseModule } from './plugins/database/database.module';
 import { AuthModule } from './plugins/auth/auth.module';
 import { UserModule } from './features/user/user.module';
@@ -2318,7 +2318,7 @@ src/
 
 ## Summary
 
-nest-toast provides a comprehensive toolkit for building modular NestJS applications:
+@azerothian/nestjs-chained provides a comprehensive toolkit for building modular NestJS applications:
 
 1. **Plugin System** - `@Plugin()` decorator and `PluginRegistryService` for discoverable, metadata-rich components with dependency management
 
