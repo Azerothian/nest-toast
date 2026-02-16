@@ -5,14 +5,15 @@ A NestJS library for plugin architecture, chain execution, and workflow orchestr
 ## Table of Contents
 
 1. [Installation](#installation)
-2. [Quick Start](#quick-start)
-3. [Core Concepts](#core-concepts)
-4. [Plugin System](#plugin-system)
+2. [Development](#development)
+3. [Quick Start](#quick-start)
+4. [Core Concepts](#core-concepts)
+5. [Plugin System](#plugin-system)
    - [@Plugin decorator](#plugin-decorator)
    - [PluginRegistryService](#pluginregistryservice)
    - [Lifecycle hooks](#lifecycle-hooks)
    - [Dependency management](#dependency-management)
-5. [Chain Execution](#chain-execution)
+6. [Chain Execution](#chain-execution)
    - [ChainContextService](#chaincontextservice)
    - [ChainExecutorService](#chainexecutorservice)
    - [Waterfall execution](#waterfall-execution)
@@ -20,22 +21,23 @@ A NestJS library for plugin architecture, chain execution, and workflow orchestr
    - [Parallel execution](#parallel-execution)
    - [Race and allSettled](#race-and-allsettled)
    - [Concurrency control](#concurrency-control)
-6. [Workflow Orchestration](#workflow-orchestration)
+7. [Workflow Orchestration](#workflow-orchestration)
    - [WorkflowExecutorService](#workflowexecutorservice)
    - [Event-driven workflows](#event-driven-workflows)
+   - [Working with ChainEvent](#working-with-chainevent)
    - [Pipeline stages](#pipeline-stages)
-7. [Configuration](#configuration)
+8. [Configuration](#configuration)
    - [ToastModule.forRoot() options](#toastmoduleforroot-options)
    - [ToastModule.forFeature()](#toastmoduleforfeature)
-8. [API Reference](#api-reference)
+9. [API Reference](#api-reference)
    - [Decorators](#decorators)
    - [Services](#services)
    - [Interfaces](#interfaces)
-9. [Advanced Patterns](#advanced-patterns)
+10. [Advanced Patterns](#advanced-patterns)
    - [Conditional loading](#conditional-loading)
    - [Compatibility validation](#compatibility-validation)
    - [Dynamic modules](#dynamic-modules)
-10. [Integration Examples](#integration-examples)
+11. [Integration Examples](#integration-examples)
 
 ---
 
@@ -59,6 +61,106 @@ npm install @nestjs/common @nestjs/core @nestjs/config @nestjs/event-emitter
 | `@nestjs/core` | ^10.0.0 | NestJS runtime and dependency injection |
 | `@nestjs/config` | ^3.0.0 | Configuration management |
 | `@nestjs/event-emitter` | ^2.0.0 | Event-driven architecture support |
+
+---
+
+## Development
+
+nest-toast is developed using TypeScript and Turborepo for monorepo management, enabling modular architecture and efficient build orchestration.
+
+### Technology Stack
+
+| Technology | Purpose |
+|------------|---------|
+| **TypeScript** | Type-safe development with full IDE support |
+| **Turborepo** | Monorepo build system with intelligent caching |
+| **NestJS** | Application framework and dependency injection |
+| **Jest** | Unit and integration testing |
+| **ESLint** | Code quality and style enforcement |
+
+### Monorepo Structure
+
+```
+nest-toast/
+├── packages/
+│   ├── core/           # Core library with plugin system
+│   │   ├── src/
+│   │   │   ├── decorators/
+│   │   │   ├── services/
+│   │   │   └── interfaces/
+│   │   └── package.json
+│   ├── chain/          # Chain execution utilities
+│   │   ├── src/
+│   │   │   ├── chain-context.service.ts
+│   │   │   └── chain-executor.service.ts
+│   │   └── package.json
+│   └── workflow/       # Workflow orchestration
+│       ├── src/
+│       │   └── workflow-executor.service.ts
+│       └── package.json
+├── apps/
+│   └── examples/       # Example applications
+│       ├── basic/
+│       ├── advanced/
+│       └── production/
+├── turbo.json          # Turborepo configuration
+└── package.json        # Workspace root
+```
+
+### Build Commands
+
+```bash
+# Install dependencies
+npm install
+
+# Build all packages
+npm run build
+
+# Build specific package
+npm run build --filter=@nest-toast/core
+
+# Run tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Lint code
+npm run lint
+
+# Type check
+npm run type-check
+```
+
+### Development Workflow
+
+1. **Package Development**: Work in individual packages under `packages/`
+2. **Internal Dependencies**: Packages can depend on each other via workspace protocol
+3. **Incremental Builds**: Turborepo caches build outputs for unchanged packages
+4. **Parallel Execution**: Tests and builds run in parallel across packages
+5. **Type Safety**: Shared TypeScript types ensure consistency across packages
+
+### Turborepo Configuration
+
+The `turbo.json` file defines the build pipeline:
+
+```json
+{
+  "pipeline": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"]
+    },
+    "test": {
+      "dependsOn": ["build"],
+      "outputs": ["coverage/**"]
+    },
+    "lint": {
+      "outputs": []
+    }
+  }
+}
+```
 
 ---
 
@@ -196,6 +298,7 @@ export class MyFeatureModule {}
 ```typescript
 // Decorators
 @Plugin({ name, version, dependencies?, incompatibleWith? })
+@OnChainEvent(eventName)
 
 // Services
 PluginRegistryService    // Discovery, metadata, dependency ordering
@@ -208,6 +311,7 @@ PluginMetadata
 PluginInstance
 ChainContext
 ChainHandler<T>
+ChainEvent<T>
 WorkflowStep
 ```
 
@@ -342,6 +446,145 @@ export class MyPlugin
 }
 ```
 
+### Event Handling with Multiple Plugins
+
+When multiple plugins register handlers for the same event, the system executes them as a chain in dependency graph order, where each handler receives the result from the previous handler.
+
+#### Execution Order
+
+Event handlers are executed in the order determined by the plugin dependency graph. Plugins with dependencies execute after their dependencies:
+
+```typescript
+@Plugin({
+  name: 'logger',
+  version: '1.0.0',
+})
+@Injectable()
+export class LoggerPlugin {
+  @OnEvent('user:created')
+  async handleUserCreated(data: any): Promise<any> {
+    console.log('Logging user creation:', data);
+    return { ...data, logged: true };
+  }
+}
+
+@Plugin({
+  name: 'notification',
+  version: '1.0.0',
+  dependencies: ['logger'], // Executes after logger
+})
+@Injectable()
+export class NotificationPlugin {
+  @OnEvent('user:created')
+  async handleUserCreated(data: any): Promise<any> {
+    // Receives result from logger handler
+    console.log('Data includes logged:', data.logged); // true
+    await this.sendEmail(data);
+    return { ...data, notified: true };
+  }
+}
+```
+
+#### Result Chaining
+
+Each event handler in the chain receives the result from the previous handler. This enables transformation pipelines where each plugin can enrich or modify the data:
+
+```typescript
+// Emit event with initial data
+this.eventEmitter.emit('user:created', { userId: 1, email: 'user@example.com' });
+
+// Execution flow:
+// 1. LoggerPlugin receives:  { userId: 1, email: 'user@example.com' }
+//    Returns:                { userId: 1, email: 'user@example.com', logged: true }
+//
+// 2. NotificationPlugin receives: { userId: 1, email: 'user@example.com', logged: true }
+//    Returns:                     { userId: 1, email: 'user@example.com', logged: true, notified: true }
+//
+// Final result: { userId: 1, email: 'user@example.com', logged: true, notified: true }
+```
+
+#### Cancellation
+
+Any handler in the chain can cancel further processing by throwing an error:
+
+```typescript
+@Plugin({
+  name: 'validator',
+  version: '1.0.0',
+})
+@Injectable()
+export class ValidatorPlugin {
+  @OnEvent('order:created')
+  async handleOrderCreated(data: OrderData): Promise<OrderData> {
+    if (!this.isValid(data)) {
+      // Cancel the chain - subsequent handlers won't execute
+      throw new ValidationError('Order validation failed');
+    }
+    return { ...data, validated: true };
+  }
+}
+
+@Plugin({
+  name: 'payment',
+  version: '1.0.0',
+  dependencies: ['validator'],
+})
+@Injectable()
+export class PaymentPlugin {
+  @OnEvent('order:created')
+  async handleOrderCreated(data: OrderData): Promise<OrderData> {
+    // Won't execute if validator throws
+    await this.processPayment(data);
+    return { ...data, paid: true };
+  }
+}
+```
+
+#### Immediate Results and Early Termination
+
+A handler can mark processing as finished and return an immediate result to skip remaining handlers:
+
+```typescript
+@Plugin({
+  name: 'cache',
+  version: '1.0.0',
+})
+@Injectable()
+export class CachePlugin {
+  @OnEvent('data:fetch')
+  async handleDataFetch(request: FetchRequest): Promise<any> {
+    const cached = await this.cache.get(request.key);
+    if (cached) {
+      // Return result marked as finished - skip remaining handlers
+      return {
+        data: cached,
+        fromCache: true,
+        __finished: true, // Special marker to terminate chain
+      };
+    }
+    // Continue to next handler
+    return request;
+  }
+}
+
+@Plugin({
+  name: 'database',
+  version: '1.0.0',
+  dependencies: ['cache'],
+})
+@Injectable()
+export class DatabasePlugin {
+  @OnEvent('data:fetch')
+  async handleDataFetch(request: FetchRequest): Promise<any> {
+    // Only executes if cache handler didn't return __finished: true
+    const data = await this.db.query(request.key);
+    return { data, fromCache: false };
+  }
+}
+```
+
+When a handler returns an object with `__finished: true`, the chain terminates immediately and that result is used as the final value.
+
 ### Dependency Management
 
 #### Required Dependencies
@@ -436,11 +679,88 @@ export class AuthModule {
 
 ## Chain Execution
 
-The chain execution system provides utilities for executing operations in sequence or parallel with full control over execution flow. It uses `AsyncLocalStorage` for context management, allowing any code in the call stack to access chain state without parameter threading.
+The chain execution system provides utilities for executing operations in sequence or parallel with full control over execution flow.
+
+**Key Innovation: AsyncLocalStorage for Context Management**
+
+Unlike traditional approaches that require passing context objects through every function parameter, nest-toast uses Node.js `AsyncLocalStorage` to maintain chain state (cancellation, intermediate results) accessible from anywhere in the call stack. This means:
+
+- ✅ **No parameter threading**: Services deep in your call stack can cancel or check status
+- ✅ **Cleaner interfaces**: Handler functions only receive and return data
+- ✅ **Flexible architecture**: Add cancellation to existing code without refactoring signatures
+- ✅ **Framework integration**: Works seamlessly with dependency injection and decorators
 
 ### ChainContextService
 
 The `ChainContextService` manages chain execution context using Node.js `AsyncLocalStorage`. This allows any service in the call stack to check or set cancellation state without passing context through parameters.
+
+#### Why AsyncLocalStorage?
+
+**❌ Traditional Pattern (Context Threading)**
+```typescript
+// Every function must accept and pass context
+interface Context {
+  cancelled: boolean;
+  reason?: Error;
+}
+
+async function processOrder(order: Order, context: Context): Promise<Order> {
+  const validated = await validateOrder(order, context);
+  if (context.cancelled) return validated;
+
+  const calculated = await calculateTotals(validated, context);
+  if (context.cancelled) return calculated;
+
+  return processPayment(calculated, context);
+}
+
+async function validateOrder(order: Order, context: Context): Promise<Order> {
+  // Must pass context to nested calls
+  const result = await deepValidation(order, context);
+  return result;
+}
+
+async function deepValidation(order: Order, context: Context): Promise<Order> {
+  if (!order.items.length) {
+    context.cancelled = true;  // Mutate shared context
+    context.reason = new Error('No items');
+  }
+  return order;
+}
+```
+
+**✅ nest-toast Pattern (AsyncLocalStorage)**
+```typescript
+// Clean interfaces - no context parameter needed
+async function processOrder(order: Order): Promise<Order> {
+  return chainExecutor.waterfall(order, [
+    (o) => validateOrder(o),
+    (o) => calculateTotals(o),
+    (o) => processPayment(o),
+  ]);
+}
+
+@Injectable()
+export class ValidatorService {
+  constructor(private readonly chainContext: ChainContextService) {}
+
+  async validateOrder(order: Order): Promise<Order> {
+    // Inject ChainContextService anywhere in the call stack
+    const result = await this.deepValidation(order);
+    return result;
+  }
+
+  private async deepValidation(order: Order): Promise<Order> {
+    if (!order.items.length) {
+      // Cancel from any depth - no parameter threading required
+      this.chainContext.cancel(new Error('No items'));
+    }
+    return order;
+  }
+}
+```
+
+#### Basic Usage
 
 ```typescript
 import { Injectable } from '@nestjs/common';
@@ -517,7 +837,15 @@ async processData(input: Data): Promise<Data> {
 
 ### Cancellation
 
-Cancellation uses `AsyncLocalStorage`, so any service in the call stack can cancel - no need to pass context through every function.
+> **💡 AsyncLocalStorage-Powered Cancellation**
+>
+> Cancellation uses Node.js `AsyncLocalStorage`, enabling any service at any depth in your call stack to cancel chain execution without parameter threading. Simply inject `ChainContextService` and call `cancel()` - no need to modify function signatures or pass context objects through every layer.
+>
+> **Benefits:**
+> - Cancel from deeply nested services without refactoring
+> - Maintain clean function signatures focused on business logic
+> - Works seamlessly with NestJS dependency injection
+> - No performance overhead from parameter passing
 
 #### Cancel from a Nested Service
 
@@ -778,6 +1106,437 @@ export class OrderNotificationService {
 }
 ```
 
+### Working with ChainEvent
+
+The `ChainEvent` interface provides a standardized structure for workflow and chain events, enabling rich metadata, tagging, and distributed tracing.
+
+#### Basic ChainEvent Structure
+
+The `ChainEvent` interface defines the structure used internally by the framework and when emitting events via factory functions:
+
+```typescript
+import { ChainEvent } from 'nest-toast';
+
+const event: ChainEvent<Order> = {
+  name: 'order:validated',
+  data: order,
+  timestamp: Date.now(),
+  tags: ['business', 'critical'],
+  metadata: {
+    validatedBy: 'ValidatorService',
+    rulesApplied: ['stock-check', 'price-validation'],
+  },
+  context: {
+    executionId: 'exec-123',
+    duration: 45,
+  },
+};
+```
+
+> **Note**: Event handlers decorated with `@OnChainEvent` receive only the `data` field directly (e.g., `Order`), not the full `ChainEvent` wrapper. The metadata, tags, and context can be accessed via `ChainContextService.getCurrentEvent()` when needed.
+
+#### Using ChainEvent with Workflows
+
+You can use ChainEvent in two ways: simple string events or rich ChainEvent factories.
+
+**Simple String Event (Backward Compatible)**
+```typescript
+async processOrder(order: Order): Promise<Order> {
+  return this.workflowExecutor.executeWorkflow('order-processing', order, [
+    {
+      name: 'validate',
+      handler: async (o) => this.validateOrder(o),
+      emitEvent: 'order:validated',  // Simple string
+    },
+  ]);
+}
+```
+
+**ChainEvent Factory (Rich Metadata)**
+```typescript
+async processOrder(order: Order): Promise<Order> {
+  return this.workflowExecutor.executeWorkflow('order-processing', order, [
+    {
+      name: 'validate',
+      handler: async (o) => this.validateOrder(o),
+      emitEvent: (data) => ({
+        name: 'order:validated',
+        data,
+        timestamp: Date.now(),
+        tags: ['business', 'validation'],
+        metadata: {
+          itemCount: data.items.length,
+          totalAmount: data.total,
+          validationLevel: 'strict',
+        },
+        context: {
+          executionId: this.generateExecutionId(),
+        },
+      }),
+    },
+    {
+      name: 'payment',
+      handler: async (o) => this.processPayment(o),
+      emitEvent: (data) => ({
+        name: 'order:paid',
+        data,
+        timestamp: Date.now(),
+        tags: ['business', 'payment', 'critical'],
+        metadata: {
+          paymentMethod: data.paymentMethod,
+          amount: data.total,
+          currency: 'USD',
+        },
+      }),
+    },
+  ]);
+}
+```
+
+#### Listening to ChainEvent
+
+Event listeners use the `@OnChainEvent` decorator and receive the data payload directly:
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import { OnChainEvent } from 'nest-toast';
+
+@Injectable()
+export class OrderAnalyticsService {
+  @OnChainEvent('order:validated')
+  async handleOrderValidated(order: Order): Promise<Order> {
+    // Access the data directly
+    this.logger.log({
+      message: 'Order validated',
+      orderId: order.id,
+    });
+
+    // Business analytics
+    await this.trackOrderValidation(order);
+
+    // Return data (optionally transformed)
+    return order;
+  }
+}
+```
+
+> **Note**: The ChainEvent wrapper (with metadata, tags, context, timestamp) is managed internally by the framework. Handlers receive and return the data payload directly, keeping the API clean and focused on business logic.
+
+#### Multiple Plugins Handling the Same ChainEvent
+
+When multiple plugins register handlers for the same ChainEvent, the system executes them **sequentially** in the order determined by the plugin dependency graph. Each handler receives the data from the previous handler, enabling transformation chains.
+
+**Execution Order**
+
+Plugins with dependencies execute after their dependencies:
+
+```typescript
+import { Plugin, OnChainEvent } from 'nest-toast';
+
+@Plugin({
+  name: 'logger',
+  version: '1.0.0',
+})
+@Injectable()
+export class LoggerPlugin {
+  @OnChainEvent('order:validated')
+  async handleOrderValidated(order: Order): Promise<Order> {
+    console.log('Logging order validation:', order);
+
+    // Return enriched data
+    return {
+      ...order,
+      logged: true,
+      loggedAt: Date.now(),
+    };
+  }
+}
+
+@Plugin({
+  name: 'notification',
+  version: '1.0.0',
+  dependencies: ['logger'], // Executes after logger
+})
+@Injectable()
+export class NotificationPlugin {
+  @OnChainEvent('order:validated')
+  async handleOrderValidated(order: Order): Promise<Order> {
+    // Receives enriched data from logger handler
+    console.log('Order was logged:', order.logged); // true
+
+    await this.sendEmail(order);
+
+    return {
+      ...order,
+      notified: true,
+    };
+  }
+}
+```
+
+**Data Transformation Chain**
+
+Each handler can transform the data, and the next handler receives the transformed version:
+
+```typescript
+// Execution flow:
+// 1. LoggerPlugin receives:     { id: 1, total: 100 }
+//    Returns:                    { id: 1, total: 100, logged: true, loggedAt: 1234567890 }
+//
+// 2. NotificationPlugin receives: { id: 1, total: 100, logged: true, loggedAt: 1234567890 }
+//    Returns:                      { id: 1, total: 100, logged: true, loggedAt: 1234567890, notified: true }
+//
+// Final data: { id: 1, total: 100, logged: true, loggedAt: 1234567890, notified: true }
+```
+
+**Cancellation in ChainEvent Handlers**
+
+Any handler in the chain can prevent further processing by throwing an error:
+
+```typescript
+@Plugin({
+  name: 'fraud-detector',
+  version: '1.0.0',
+})
+@Injectable()
+export class FraudDetectorPlugin {
+  @OnChainEvent('order:validated')
+  async handleOrderValidated(order: Order): Promise<Order> {
+    if (this.isFraudulent(order)) {
+      // Throw to cancel the chain - subsequent handlers won't execute
+      throw new FraudError('Fraudulent order detected');
+    }
+
+    return {
+      ...order,
+      fraudCheck: 'passed',
+    };
+  }
+}
+
+@Plugin({
+  name: 'fulfillment',
+  version: '1.0.0',
+  dependencies: ['fraud-detector'],
+})
+@Injectable()
+export class FulfillmentPlugin {
+  @OnChainEvent('order:validated')
+  async handleOrderValidated(order: Order): Promise<Order> {
+    // Won't execute if fraud-detector throws
+    await this.scheduleShipment(order);
+
+    return {
+      ...order,
+      shipmentScheduled: true,
+    };
+  }
+}
+```
+
+**Early Termination with finish()**
+
+A handler can mark processing as finished using `ChainContextService.finish()` to skip remaining handlers. The returned data from that handler becomes the final result:
+
+```typescript
+import { ChainContextService } from 'nest-toast';
+
+@Plugin({
+  name: 'cache-checker',
+  version: '1.0.0',
+})
+@Injectable()
+export class CacheCheckerPlugin {
+  constructor(private readonly chainContext: ChainContextService) {}
+
+  @OnChainEvent('data:fetch')
+  async handleDataFetch(request: FetchRequest): Promise<any> {
+    const cached = await this.cache.get(request.key);
+
+    if (cached) {
+      // Mark chain as finished - remaining handlers will be skipped
+      this.chainContext.finish();
+
+      // The returned data becomes the final result
+      return {
+        ...cached,
+        fromCache: true,
+      };
+    }
+
+    // Continue to next handler
+    return request;
+  }
+}
+
+@Plugin({
+  name: 'database-fetcher',
+  version: '1.0.0',
+  dependencies: ['cache-checker'],
+})
+@Injectable()
+export class DatabaseFetcherPlugin {
+  @OnChainEvent('data:fetch')
+  async handleDataFetch(request: FetchRequest): Promise<any> {
+    // Only executes if cache-checker didn't call finish()
+    const data = await this.db.query(request.key);
+
+    return {
+      ...data,
+      fromCache: false,
+    };
+  }
+}
+```
+
+When a handler calls `this.chainContext.finish()`, the chain terminates immediately after that handler completes, and the data returned by that handler is used as the final result. Like cancellation, the finish state is managed via `AsyncLocalStorage`, so it can be called from anywhere in the handler's call stack.
+
+#### Event Filtering by Tags
+
+Use the ChainEvent metadata (accessed via `ChainContextService`) to filter and route events:
+
+```typescript
+import { ChainContextService } from 'nest-toast';
+
+@Injectable()
+export class CriticalEventHandler {
+  constructor(private readonly chainContext: ChainContextService) {}
+
+  @OnChainEvent('order:**')
+  async handleOrderEvent(order: Order): Promise<Order> {
+    // Access ChainEvent metadata via context
+    const event = this.chainContext.getCurrentEvent();
+
+    // Only process critical events
+    if (event?.tags?.includes('critical')) {
+      await this.escalate(order);
+    }
+
+    return order;
+  }
+}
+
+@Injectable()
+export class MetricsService {
+  constructor(private readonly chainContext: ChainContextService) {}
+
+  @OnChainEvent('**')  // Listen to all events
+  async collectMetrics(data: any): Promise<any> {
+    // Access event metadata via context
+    const event = this.chainContext.getCurrentEvent();
+
+    if (event) {
+      // Collect metrics from all events
+      this.metrics.increment(`events.${event.name}`);
+
+      // Track by tag
+      event.tags?.forEach(tag => {
+        this.metrics.increment(`events.tag.${tag}`);
+      });
+
+      // Track duration if available
+      if (event.context?.duration) {
+        this.metrics.histogram(`events.${event.name}.duration`, event.context.duration);
+      }
+    }
+
+    return data;
+  }
+}
+```
+
+#### Distributed Tracing with Execution Context
+
+Use the `context` field for distributed tracing across services:
+
+```typescript
+async processNestedWorkflow(order: Order): Promise<Order> {
+  const parentExecutionId = this.generateExecutionId();
+
+  // Parent workflow
+  const result = await this.workflowExecutor.executeWorkflow(
+    'parent-workflow',
+    order,
+    [
+      {
+        name: 'process',
+        handler: async (o) => {
+          // Child workflow inherits parent context
+          return this.childWorkflow(o, parentExecutionId);
+        },
+        emitEvent: (data) => ({
+          name: 'parent:completed',
+          data,
+          timestamp: Date.now(),
+          context: {
+            executionId: parentExecutionId,
+          },
+        }),
+      },
+    ],
+  );
+
+  return result;
+}
+
+private async childWorkflow(order: Order, parentId: string): Promise<Order> {
+  return this.workflowExecutor.executeWorkflow('child-workflow', order, [
+    {
+      name: 'child-step',
+      handler: async (o) => this.processChild(o),
+      emitEvent: (data) => ({
+        name: 'child:completed',
+        data,
+        timestamp: Date.now(),
+        context: {
+          executionId: this.generateExecutionId(),
+          parentExecutionId: parentId,  // Link to parent
+        },
+      }),
+    },
+  ]);
+}
+```
+
+#### Custom Metadata for Observability
+
+Add application-specific metadata for debugging and monitoring:
+
+```typescript
+{
+  name: 'validate',
+  handler: async (order) => this.validateOrder(order),
+  emitEvent: (data) => ({
+    name: 'order:validated',
+    data,
+    timestamp: Date.now(),
+    tags: ['validation', 'business'],
+    metadata: {
+      // Business context
+      customerId: data.customerId,
+      region: data.shippingAddress.country,
+
+      // Technical context
+      validatorVersion: '2.0.0',
+      rulesEngine: 'strict',
+      cacheHit: false,
+
+      // Performance metrics
+      itemsValidated: data.items.length,
+      validationTimeMs: 42,
+
+      // Feature flags
+      experimentGroup: 'control',
+      featureFlags: ['new-validation', 'fraud-check-v2'],
+    },
+    context: {
+      executionId: this.generateExecutionId(),
+      duration: 42,
+    },
+  }),
+}
+```
+
 ### Pipeline Stages
 
 Define complex multi-stage pipelines:
@@ -820,6 +1579,7 @@ ToastModule.forRoot({
 | `validateCompatibility` | `boolean` | `true` | Validate plugin compatibility on startup |
 | `enableDiscovery` | `boolean` | `true` | Enable automatic plugin discovery |
 | `discoveryFilter` | `(metadata: PluginMetadata) => boolean` | `undefined` | Filter which plugins to register |
+| `pluginPaths` | `string[]` | `undefined` | Array of paths to dynamically load plugins from (npm packages or file paths) |
 
 ### ToastModule.forFeature()
 
@@ -832,6 +1592,107 @@ Import in feature modules to enable plugin discovery:
 })
 export class MyFeatureModule {}
 ```
+
+### Dynamic Plugin Loading
+
+Load plugins dynamically from npm packages or file system paths using the `pluginPaths` option. This is useful for:
+- Loading plugins from external npm packages
+- Loading plugins from local directories during development
+- Enabling runtime plugin configuration
+
+#### Basic Usage
+
+```typescript
+ToastModule.forRoot({
+  pluginPaths: [
+    'my-plugin-package',           // npm package
+    '@company/custom-plugins',     // scoped npm package
+    './plugins/custom',            // relative file path
+    '/absolute/path/to/plugins',   // absolute file path
+  ],
+})
+```
+
+#### Loading from npm Packages
+
+```typescript
+@Module({
+  imports: [
+    ToastModule.forRoot({
+      pluginPaths: [
+        'nest-toast-logging',
+        'nest-toast-metrics',
+        '@mycompany/toast-plugins',
+      ],
+    }),
+  ],
+})
+export class AppModule {}
+```
+
+Each npm package is imported using dynamic `import()` and scanned for `@Plugin()` decorated classes.
+
+#### Loading from File System
+
+```typescript
+@Module({
+  imports: [
+    ToastModule.forRoot({
+      pluginPaths: [
+        './plugins',                    // relative to project root
+        '../shared-plugins',            // relative path up one level
+        '/opt/application/plugins',     // absolute path
+      ],
+    }),
+  ],
+})
+export class AppModule {}
+```
+
+File paths can be relative (resolved from the application root) or absolute.
+
+#### Mixing Both Approaches
+
+```typescript
+@Module({
+  imports: [
+    ToastModule.forRoot({
+      pluginPaths: [
+        // Production plugins from npm
+        'nest-toast-auth',
+        '@company/production-plugins',
+
+        // Development plugins from local files
+        process.env.NODE_ENV === 'development' ? './plugins/dev' : null,
+      ].filter(Boolean),
+    }),
+  ],
+})
+export class AppModule {}
+```
+
+#### Loading Behavior
+
+- **Dynamic Imports**: Each path is loaded using `import()` statements at runtime
+- **Automatic Registration**: Loaded modules are scanned for `@Plugin()` decorated classes
+- **Module Initialization**: Loading occurs during the NestJS module initialization phase
+- **Plugin Discovery**: Loaded plugins are automatically registered with `PluginRegistryService`
+- **Error Handling**: Errors during loading are logged and handled gracefully without crashing the application
+- **Compatibility Validation**: If `validateCompatibility: true`, loaded plugins are validated before registration
+
+#### Error Handling Example
+
+```typescript
+ToastModule.forRoot({
+  pluginPaths: [
+    'potentially-missing-package',  // Won't crash if missing
+    './might-not-exist',            // Won't crash if missing
+  ],
+  validateCompatibility: true,      // Still validates successfully loaded plugins
+})
+```
+
+If a path cannot be loaded, the error is logged but the application continues initialization with the successfully loaded plugins.
 
 ### Environment Configuration
 
@@ -905,6 +1766,43 @@ interface PluginMetadata {
 }
 ```
 
+#### @OnChainEvent(eventName: string)
+
+Marks a method as a ChainEvent handler. When multiple plugins register handlers for the same event, they execute sequentially in plugin dependency order.
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import { OnChainEvent } from 'nest-toast';
+
+@Injectable()
+export class OrderHandler {
+  @OnChainEvent('order:validated')
+  async handleOrderValidated(order: Order): Promise<Order> {
+    // Handler receives data directly (not wrapped in ChainEvent)
+    console.log('Processing order:', order.id);
+
+    // Can transform and return data
+    return {
+      ...order,
+      processed: true,
+    };
+  }
+
+  @OnChainEvent('order:**')  // Wildcard pattern
+  async handleAllOrderEvents(data: any): Promise<any> {
+    // Matches all events starting with 'order:'
+    return data;
+  }
+}
+```
+
+**Key Features:**
+- Handlers receive the data payload directly (e.g., `Order`), not wrapped in `ChainEvent`
+- Access ChainEvent metadata via `ChainContextService.getCurrentEvent()`
+- Multiple handlers for the same event execute sequentially by dependency order
+- Return value is passed to the next handler in the chain
+- Can call `ChainContextService.cancel()` or `finish()` to control execution flow
+
 ### Services
 
 #### PluginRegistryService
@@ -924,8 +1822,11 @@ interface PluginMetadata {
 | `run` | `<T>(fn: () => Promise<T>): Promise<T>` | Execute within new context |
 | `cancel` | `(reason?: Error): void` | Cancel the current chain |
 | `isCancelled` | `(): boolean` | Check cancellation status |
+| `finish` | `(): void` | Mark chain as finished (skip remaining handlers) |
+| `isFinished` | `(): boolean` | Check if chain is marked as finished |
 | `getContext` | `(): ChainContext \| undefined` | Get current context |
 | `getReason` | `(): Error \| undefined` | Get cancellation reason |
+| `getCurrentEvent` | `<T>(): ChainEvent<T> \| undefined` | Get current ChainEvent metadata (for @OnChainEvent handlers) |
 | `setResult` | `(key: string, value: any): void` | Store intermediate result |
 | `getResult` | `<T>(key: string): T \| undefined` | Retrieve intermediate result |
 
@@ -958,6 +1859,22 @@ interface ChainContext {
   results: Map<string, any>;
 }
 
+// Standardized event structure for workflow and chain events
+interface ChainEvent<T = any> {
+  name: string;                    // Event name (e.g., 'order:validated')
+  data: T;                         // Event payload
+  workflow?: string;               // Workflow name if emitted from workflow
+  step?: string;                   // Step name if emitted from workflow step
+  timestamp: number;               // Unix timestamp (milliseconds)
+  tags?: string[];                 // Classification tags (e.g., ['critical', 'business'])
+  metadata?: Record<string, any>;  // Custom metadata for observability
+  context?: {                      // Execution context for tracing
+    executionId?: string;          // Unique execution identifier
+    parentExecutionId?: string;    // Parent execution for nested workflows
+    duration?: number;             // Step/workflow duration in milliseconds
+  };
+}
+
 // Pipeline stage definition
 interface PipelineStage<T = any> {
   name: string;
@@ -974,7 +1891,7 @@ interface PipelineResult<T> {
 interface WorkflowStep<T> {
   name: string;
   handler: (data: T) => Promise<T>;
-  emitEvent?: string;
+  emitEvent?: string | ((data: T) => ChainEvent<T>);  // Simple string or ChainEvent factory
 }
 
 // Plugin information
