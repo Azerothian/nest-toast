@@ -1900,9 +1900,7 @@ import { ToastModule } from '@azerothian/nestjs-chained';
 @Module({
   imports: [
     ToastModule.forRoot({
-      // Enable tracking in production for debugging
       executionTracking: {
-        enabled: process.env.DEBUG_MODE === 'true',
         defaultFormat: 'timeline',
       },
     }),
@@ -3360,7 +3358,7 @@ Enable and configure execution tracking in your module configuration:
 // Module configuration
 ToastModule.forRoot({
   executionTracking: {
-    enabled: true,                    // Enable tracking (default: false)
+    enabled: true,                    // Enable tracking (default: true)
     captureInputSnapshots: false,     // Capture handler inputs (default: false)
     captureOutputSnapshots: false,    // Capture handler outputs (default: false)
     maxHandlerRecords: 100,           // Max records to keep (default: 100)
@@ -3369,10 +3367,8 @@ ToastModule.forRoot({
 })
 
 // Runtime toggle
-chainContext.setTrackingEnabled(true);
+chainContext.setTrackingEnabled(false);
 ```
-
-> **⚠️ Performance Note**: Execution tracking is disabled by default to avoid overhead in production. Enable it selectively for debugging or in development environments. Input/output snapshots can consume significant memory for large data objects.
 
 ### Trace Formats
 
@@ -4220,7 +4216,7 @@ ToastModule.forRoot({
 | `discoveryFilter` | `(metadata: PluginMetadata) => boolean` | `undefined` | Filter which plugins to register |
 | `pluginPaths` | `string[]` | `undefined` | Array of paths to dynamically load plugins from (npm packages or file paths) |
 | `executionTracking` | `ExecutionTrackingConfig` | `undefined` | Execution tracking configuration |
-| `executionTracking.enabled` | `boolean` | `false` | Enable execution tracking globally |
+| `executionTracking.enabled` | `boolean` | `true` | Enable execution tracking globally |
 | `executionTracking.captureInputSnapshots` | `boolean` | `false` | Capture handler input data (memory intensive) |
 | `executionTracking.captureOutputSnapshots` | `boolean` | `false` | Capture handler output data (memory intensive) |
 | `executionTracking.maxHandlerRecords` | `number` | `100` | Maximum number of handler records to keep |
