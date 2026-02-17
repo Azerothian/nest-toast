@@ -385,6 +385,7 @@ export class OrderValidationTasks {
   })
   @OnChainEvent<ValidateOrderOutput>('order.validate')
   async validateOrder(
+    result: ValidateOrderOutput,
     input: ValidateOrderInput,
   ): Promise<ValidateOrderOutput> {
     // Validation logic
@@ -431,6 +432,7 @@ export class PaymentTasks {
   })
   @OnChainEvent<PaymentResult, [OrderContext]>('payment.process')
   async processPayment(
+    result: PaymentResult,
     input: PaymentInput,
     @BpmnContext() context: OrderContext,
   ): Promise<PaymentResult> {
@@ -1471,6 +1473,7 @@ export class OrderTasks {
   })
   @OnChainEvent<ValidationResult, [OrderContext]>('order.validate')
   async validateOrder(
+    result: ValidationResult,
     input: OrderInput,
     @BpmnContext() context: OrderContext,
   ): Promise<ValidationResult> {
@@ -1487,7 +1490,7 @@ export class OrderTasks {
   })
   @OnChainEvent<PaymentResult, [OrderContext, string, PaymentMethod]>('payment.process')
   async processPayment(
-    amount: number,
+    result: PaymentResult,
     @BpmnContext() context: OrderContext,
     currency: string,
     method: PaymentMethod,
@@ -1621,6 +1624,7 @@ export class OrderTasks {
   @BpmnTask({ taskId: 'Task_Validate', inputType: 'OrderInput', outputType: 'ValidationResult' })
   @OnChainEvent<ValidationResult, [OrderContext]>('order.validate')
   async validate(
+    result: ValidationResult,
     input: OrderInput,
     @BpmnContext() ctx: OrderContext,
   ): Promise<ValidationResult> {
@@ -1632,6 +1636,7 @@ export class OrderTasks {
   @BpmnTask({ taskId: 'Task_Approve', inputType: 'ValidationResult', outputType: 'OrderOutput' })
   @OnChainEvent<OrderOutput, [OrderContext]>('order.approve')
   async approve(
+    result: OrderOutput,
     validation: ValidationResult,
     @BpmnContext() ctx: OrderContext,
   ): Promise<OrderOutput> {
@@ -1678,6 +1683,7 @@ export class FulfillmentWorker {
   @BpmnTask({ taskId: 'Task_ReserveInventory' })
   @OnChainEvent<InventoryResult, [OrderFulfillmentContext]>('inventory.reserve')
   async reserveInventory(
+    result: InventoryResult,
     input: InventoryRequest,
     @BpmnContext() ctx: OrderFulfillmentContext,
   ): Promise<InventoryResult> {
@@ -1689,6 +1695,7 @@ export class FulfillmentWorker {
   @BpmnTask({ taskId: 'Task_ProcessPayment' })
   @OnChainEvent<PaymentResult, [OrderFulfillmentContext]>('payment.process')
   async processPayment(
+    result: PaymentResult,
     input: PaymentRequest,
     @BpmnContext() ctx: OrderFulfillmentContext,
   ): Promise<PaymentResult> {
@@ -1700,6 +1707,7 @@ export class FulfillmentWorker {
   @BpmnTask({ taskId: 'Task_CreateShipment' })
   @OnChainEvent<ShipmentResult, [OrderFulfillmentContext]>('shipping.create')
   async createShipment(
+    result: ShipmentResult,
     input: ShipmentRequest,
     @BpmnContext() ctx: OrderFulfillmentContext,
   ): Promise<ShipmentResult> {
@@ -1736,13 +1744,13 @@ export class LoanTasks {
   // Gateway condition handlers
   @BpmnTask({ taskId: 'Task_AutoApprove' })
   @OnChainEvent<LoanDecision, [LoanContext]>('loan.autoApprove')
-  async autoApprove(input: CreditResult, @BpmnContext() ctx: LoanContext): Promise<LoanDecision> {
+  async autoApprove(result: LoanDecision, input: CreditResult, @BpmnContext() ctx: LoanContext): Promise<LoanDecision> {
     return { approved: true, reason: 'Auto-approved based on credit score' };
   }
 
   @BpmnTask({ taskId: 'Task_ManualReview' })
   @OnChainEvent<LoanDecision, [LoanContext]>('loan.manualReview')
-  async manualReview(input: CreditResult, @BpmnContext() ctx: LoanContext): Promise<LoanDecision> {
+  async manualReview(result: LoanDecision, input: CreditResult, @BpmnContext() ctx: LoanContext): Promise<LoanDecision> {
     // Create manual review task
     const reviewId = await this.reviewService.create(ctx);
     return { approved: false, pending: true, reviewId };
@@ -1750,7 +1758,7 @@ export class LoanTasks {
 
   @BpmnTask({ taskId: 'Task_Reject' })
   @OnChainEvent<LoanDecision, [LoanContext]>('loan.reject')
-  async reject(input: CreditResult, @BpmnContext() ctx: LoanContext): Promise<LoanDecision> {
+  async reject(result: LoanDecision, input: CreditResult, @BpmnContext() ctx: LoanContext): Promise<LoanDecision> {
     return { approved: false, reason: 'Credit score below threshold' };
   }
 }
