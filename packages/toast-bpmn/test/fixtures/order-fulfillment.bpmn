@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:toast="http://azerothian.io/schema/toast-bpmn"
+                  id="Definitions_2"
+                  targetNamespace="http://example.com/order">
+  <bpmn:process id="OrderFulfillment" name="Order Fulfillment" isExecutable="true">
+    <bpmn:extensionElements>
+      <toast:ProcessConfig description="Multi-task order fulfillment with type constraints" version="2.0.0" />
+    </bpmn:extensionElements>
+
+    <bpmn:startEvent id="StartEvent_1" name="Order Received">
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:serviceTask id="Task_ValidateOrder" name="Validate Order">
+      <bpmn:extensionElements>
+        <toast:TaskConfig chainEventName="order.validate" inputType="OrderInput" outputType="ValidatedOrder" description="Validates order data" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Task_CheckInventory" name="Check Inventory">
+      <bpmn:extensionElements>
+        <toast:TaskConfig chainEventName="order.checkInventory" inputType="ValidatedOrder" outputType="InventoryResult" description="Checks stock availability" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+      <bpmn:outgoing>Flow_3</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Task_ProcessPayment" name="Process Payment">
+      <bpmn:extensionElements>
+        <toast:TaskConfig chainEventName="order.processPayment" inputType="InventoryResult" outputType="PaymentResult" description="Processes the payment" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_3</bpmn:incoming>
+      <bpmn:outgoing>Flow_4</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Task_Ship" name="Ship Order">
+      <bpmn:extensionElements>
+        <toast:TaskConfig chainEventName="order.ship" inputType="PaymentResult" outputType="ShipmentResult" description="Ships the order" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_4</bpmn:incoming>
+      <bpmn:outgoing>Flow_5</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="EndEvent_1" name="Order Complete">
+      <bpmn:incoming>Flow_5</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="Task_ValidateOrder" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_ValidateOrder" targetRef="Task_CheckInventory" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Task_CheckInventory" targetRef="Task_ProcessPayment" />
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="Task_ProcessPayment" targetRef="Task_Ship" />
+    <bpmn:sequenceFlow id="Flow_5" sourceRef="Task_Ship" targetRef="EndEvent_1" />
+  </bpmn:process>
+</bpmn:definitions>

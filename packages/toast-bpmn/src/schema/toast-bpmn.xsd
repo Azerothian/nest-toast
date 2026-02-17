@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+           xmlns:toast="http://azerothian.io/schema/toast-bpmn"
+           targetNamespace="http://azerothian.io/schema/toast-bpmn"
+           elementFormDefault="qualified">
+
+  <xs:import namespace="http://www.omg.org/spec/BPMN/20100524/MODEL"/>
+
+  <xs:complexType name="tTypeConstraint">
+    <xs:attribute name="typeName" type="xs:string" use="required"/>
+    <xs:attribute name="required" type="xs:boolean" default="false"/>
+  </xs:complexType>
+
+  <xs:complexType name="tTaskConfig">
+    <xs:sequence>
+      <xs:element name="typeConstraint" type="toast:tTypeConstraint" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="chainEventName" type="xs:string" use="required"/>
+    <xs:attribute name="inputType" type="xs:string"/>
+    <xs:attribute name="outputType" type="xs:string"/>
+    <xs:attribute name="timeout" type="xs:integer"/>
+  </xs:complexType>
+
+  <xs:complexType name="tProcessConfig">
+    <xs:attribute name="version" type="xs:string"/>
+    <xs:attribute name="description" type="xs:string"/>
+    <xs:attribute name="retryMaxRetries" type="xs:integer"/>
+    <xs:attribute name="retryBackoffMs" type="xs:integer"/>
+    <xs:attribute name="retryBackoffMultiplier" type="xs:decimal"/>
+  </xs:complexType>
+
+  <xs:element name="taskConfig" type="toast:tTaskConfig"/>
+  <xs:element name="processConfig" type="toast:tProcessConfig"/>
+  <xs:element name="typeConstraint" type="toast:tTypeConstraint"/>
+
+</xs:schema>

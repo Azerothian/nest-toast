@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:toast="http://azerothian.io/schema/toast-bpmn"
+                  id="Definitions_4"
+                  targetNamespace="http://example.com/invalid">
+  <bpmn:process id="InvalidNoStart" name="Invalid No Start" isExecutable="true">
+    <bpmn:serviceTask id="Task_Orphan" name="Orphan Task">
+      <bpmn:extensionElements>
+        <toast:TaskConfig chainEventName="invalid.orphan" />
+      </bpmn:extensionElements>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="EndEvent_1" name="End" />
+  </bpmn:process>
+</bpmn:definitions>

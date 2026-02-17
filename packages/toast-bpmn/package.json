@@ -1,7 +1,7 @@
 {
-  "name": "@azerothian/toast",
+  "name": "@azerothian/toast-bpmn",
   "version": "0.1.0",
-  "description": "A NestJS library for plugin architecture, chain execution, and workflow orchestration",
+  "description": "BPMN 2.0 workflow support for @azerothian/toast - parse BPMN XML, map tasks to chain handlers, execute workflows",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -25,24 +25,36 @@
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
+    "@azerothian/toast": "workspace:*",
     "@nestjs/common": "^10.0.0",
-    "@nestjs/config": "^3.0.0",
     "@nestjs/core": "^10.0.0",
     "@nestjs/event-emitter": "^2.0.0",
+    "bpmn-moddle": "^8.0.0",
     "reflect-metadata": "^0.1.0 || ^0.2.0",
     "rxjs": "^7.0.0"
   },
+  "peerDependenciesMeta": {
+    "bullmq": {
+      "optional": true
+    },
+    "ioredis": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@azerothian/toast": "workspace:*",
     "@azerothian/tsconfig": "workspace:*",
     "@nestjs/common": "^10.0.0",
-    "@nestjs/config": "^3.0.0",
     "@nestjs/core": "^10.0.0",
     "@nestjs/event-emitter": "^2.0.0",
     "@nestjs/platform-express": "^10.0.0",
     "@nestjs/testing": "^10.0.0",
     "@swc/core": "^1.15.11",
+    "@types/ioredis": "^5.0.0",
     "@types/node": "^22.0.0",
     "@vitest/coverage-v8": "^1.6.0",
+    "bpmn-moddle": "^8.0.0",
+    "ioredis": "^5.9.3",
     "reflect-metadata": "^0.2.0",
     "rxjs": "^7.8.0",
     "tsup": "^8.0.0",
