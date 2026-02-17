@@ -2139,9 +2139,10 @@ WorkflowExecutorService  // Event-driven workflow orchestration
 PluginMetadata
 PluginInstance
 ChainContext
-ChainHandler<T>
+ChainHandler<T, R, TArgs>   // Handler with optional initial args
 ChainEvent<T>
-WorkflowStep
+WorkflowStep<T, R, TArgs>   // Step with optional initial args
+PipelineStage<TIn, TOut, TArgs>
 ```
 
 ---
@@ -2890,6 +2891,55 @@ async processData(input: Data): Promise<Data> {
       return { ...data, processed: true };
     },
   ]);
+
+  return result;
+}
+```
+
+### Waterfall with Initial Arguments
+
+Pass constant arguments to all handlers in the chain while the return value flows through:
+
+```typescript
+interface ProcessContext {
+  userId: string;
+  tenantId: string;
+}
+
+interface ProcessOptions {
+  priority: 'high' | 'normal' | 'low';
+}
+
+async processDataWithContext(
+  input: Data,
+  context: ProcessContext,
+  options: ProcessOptions
+): Promise<Data> {
+  // Initial args (context, options) are passed to ALL handlers
+  // while the Data value flows through the chain
+  const result = await this.chainExecutor.waterfall<Data, [ProcessContext, ProcessOptions]>(
+    input,
+    [
+      async (data, ctx, opts) => {
+        // ctx and opts are the same in every handler
+        console.log(`Step 1: User ${ctx.userId}, Priority: ${opts.priority}`);
+        return { ...data, step1: true };
+      },
+      async (data, ctx, opts) => {
+        // data is the result from step 1
+        // ctx and opts are still the original values
+        console.log(`Step 2: Tenant ${ctx.tenantId}`);
+        return { ...data, step2: true };
+      },
+      async (data, ctx, opts) => {
+        // data is the result from step 2
+        return { ...data, processedBy: ctx.userId };
+      },
+    ],
+    undefined, // options (timeout, etc.)
+    context,   // first initial arg - passed to all handlers
+    options,   // second initial arg - passed to all handlers
+  );
 
   return result;
 }
@@ -4428,19 +4478,28 @@ import { Injectable } from '@nestjs/common';
 export class MyPlugin {}
 ```
 
-#### @OnChainEvent<TData, TReturn = TData>(eventName: string)
+#### @OnChainEvent<TReturn, TArgs extends unknown[] = []>(eventName: string)
 
 Marks a method as a ChainEvent handler with **compile-time type safety**. When multiple plugins register handlers for the same event, they execute sequentially in plugin dependency order.
 
 **Type Parameters:**
-- `TData` - **Required**. The type of the input data the handler receives.
-- `TReturn` - Optional. The type of the return value. Defaults to `TData` if not specified.
+- `TReturn` - **Required**. The type of the return value (and chain input).
+- `TArgs` - Optional. Tuple type for initial arguments that remain constant through the chain. Defaults to `[]` (empty tuple).
+
+**Chain Flow with Initial Arguments:**
+```
+(initial, arg1, arg2) → handler1(initial, arg1, arg2) → result1
+                      → handler2(result1, arg1, arg2) → result2
+                      → handler3(result2, arg1, arg2) → final
+```
+
+The first argument receives the return value from the previous handler (or initial value for the first handler), while subsequent arguments receive the constant initial arguments passed when executing the workflow.
 
 **Type Signature:**
 ```typescript
-function OnChainEvent<TData, TReturn = TData>(
+function OnChainEvent<TReturn, TArgs extends unknown[] = []>(
   eventName: string,
-): <T extends (data: TData) => TReturn | Promise<TReturn>>(
+): <T extends (returnVal: TReturn, ...initialArgs: TArgs) => TReturn | Promise<TReturn>>(
   target: Object,
   propertyKey: string | symbol,
   descriptor: TypedPropertyDescriptor<T>,
@@ -4451,7 +4510,7 @@ function OnChainEvent<TData, TReturn = TData>(
 - ESM: `import { OnChainEvent } from '@azerothian/toast';`
 - CommonJS: `const { OnChainEvent } = require('@azerothian/toast');`
 
-**Basic Usage:**
+**Basic Usage (Backward Compatible):**
 
 ```typescript
 import { Injectable } from '@nestjs/common';
@@ -4463,35 +4522,72 @@ interface Order {
   total: number;
 }
 
-interface ProcessedOrder extends Order {
-  processed: boolean;
-  processedAt: Date;
-}
-
 @Injectable()
 export class OrderHandler {
-  // Same input/output type (TReturn defaults to TData)
+  // Basic handler - single argument (backward compatible)
   @OnChainEvent<Order>('order:validate')
   async validateOrder(order: Order): Promise<Order> {
     // TypeScript enforces Order input AND Order output
     return order;
   }
 
-  // Different input/output types
-  @OnChainEvent<Order, ProcessedOrder>('order:process')
-  async processOrder(order: Order): Promise<ProcessedOrder> {
-    // TypeScript enforces Order input AND ProcessedOrder output
+  // Wildcard pattern with types
+  @OnChainEvent<Order>('order:**')
+  async handleAllOrderEvents(order: Order): Promise<Order> {
+    // Matches all events starting with 'order:'
+    return order;
+  }
+}
+```
+
+**Usage with Initial Arguments:**
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import { OnChainEvent } from '@azerothian/toast';
+
+interface Order {
+  id: string;
+  items: string[];
+  total: number;
+  processedBy?: string;
+}
+
+interface OrderContext {
+  userId: string;
+  tenantId: string;
+  permissions: string[];
+}
+
+interface OrderOptions {
+  skipValidation?: boolean;
+  priority?: 'high' | 'normal' | 'low';
+}
+
+@Injectable()
+export class OrderHandler {
+  // Handler with initial args that stay constant through the chain
+  @OnChainEvent<Order, [OrderContext, OrderOptions]>('order:process')
+  async processOrder(
+    order: Order,           // Return value from previous handler
+    context: OrderContext,  // Initial arg - stays constant
+    options: OrderOptions   // Initial arg - stays constant
+  ): Promise<Order> {
+    // Access context and options throughout the chain
     return {
       ...order,
-      processed: true,
-      processedAt: new Date(),
+      processedBy: context.userId
     };
   }
 
-  // Wildcard pattern with types
-  @OnChainEvent<Order, Order>('order:**')
-  async handleAllOrderEvents(order: Order): Promise<Order> {
-    // Matches all events starting with 'order:'
+  // Another handler in the same chain receives the same args
+  @OnChainEvent<Order, [OrderContext, OrderOptions]>('order:process')
+  async auditOrder(
+    order: Order,
+    context: OrderContext,
+    options: OrderOptions
+  ): Promise<Order> {
+    console.log(`Order ${order.id} processed by tenant ${context.tenantId}`);
     return order;
   }
 }
@@ -4511,45 +4607,40 @@ export interface OrderData {
   total: number;
 }
 
-export interface ProcessedOrder extends OrderData {
-  processed: boolean;
-  processedAt: Date;
+export interface OrderContext {
+  userId: string;
+  tenantId: string;
 }
 
-export interface ValidatedOrder extends OrderData {
-  validated: boolean;
-  validatedBy: string;
-}
-
-// Pre-constrained decorator factories
-export const OnOrderProcess = (eventName: string) =>
-  OnChainEvent<OrderData, ProcessedOrder>(eventName);
-
+// Pre-constrained decorator factories (without initial args)
 export const OnOrderValidate = (eventName: string) =>
-  OnChainEvent<OrderData, ValidatedOrder>(eventName);
+  OnChainEvent<OrderData>(eventName);
 
-export const OnOrderPassthrough = (eventName: string) =>
-  OnChainEvent<OrderData, OrderData>(eventName);
+// Pre-constrained decorator factories (with initial args)
+export const OnOrderProcess = (eventName: string) =>
+  OnChainEvent<OrderData, [OrderContext]>(eventName);
 ```
 
 Usage in plugins:
 
 ```typescript
 import { Plugin } from '@azerothian/toast';
-import { OnOrderProcess, OnOrderValidate, OrderData, ProcessedOrder, ValidatedOrder } from './events/order-events';
+import { OnOrderProcess, OnOrderValidate, OrderData, OrderContext } from './events/order-events';
 
 @Plugin({ name: 'order-plugin', version: '1.0.0' })
 export class OrderPlugin {
-  @OnOrderProcess('order:process')
-  async process(order: OrderData): Promise<ProcessedOrder> {
-    // Type-safe: must return ProcessedOrder
-    return { ...order, processed: true, processedAt: new Date() };
+  // Simple handler without initial args
+  @OnOrderValidate('order:validate')
+  async validate(order: OrderData): Promise<OrderData> {
+    return { ...order, validated: true };
   }
 
-  @OnOrderValidate('order:validate')
-  async validate(order: OrderData): Promise<ValidatedOrder> {
-    // Type-safe: must return ValidatedOrder
-    return { ...order, validated: true, validatedBy: 'system' };
+  // Handler with context - receives OrderContext as second argument
+  @OnOrderProcess('order:process')
+  async process(order: OrderData, context: OrderContext): Promise<OrderData> {
+    // Type-safe: context is typed as OrderContext
+    console.log(`Processing for tenant: ${context.tenantId}`);
+    return { ...order, processed: true };
   }
 }
 ```
@@ -4561,15 +4652,19 @@ For maximum flexibility, create a generic factory:
 ```typescript
 import { OnChainEvent } from '@azerothian/toast';
 
-// Generic factory for creating typed event decorators
-export function createTypedEventDecorator<TData, TReturn = TData>() {
-  return (eventName: string) => OnChainEvent<TData, TReturn>(eventName);
+// Generic factory for creating typed event decorators (without initial args)
+export function createTypedEventDecorator<TReturn>() {
+  return (eventName: string) => OnChainEvent<TReturn>(eventName);
+}
+
+// Generic factory with initial args
+export function createTypedEventDecoratorWithArgs<TReturn, TArgs extends unknown[]>() {
+  return (eventName: string) => OnChainEvent<TReturn, TArgs>(eventName);
 }
 
 // Define domain-specific typed decorators
 export const OnUserEvent = createTypedEventDecorator<UserData>();
-export const OnPaymentEvent = createTypedEventDecorator<PaymentData, PaymentResult>();
-export const OnNotificationEvent = createTypedEventDecorator<NotificationPayload, void>();
+export const OnPaymentEvent = createTypedEventDecoratorWithArgs<PaymentData, [PaymentContext]>();
 ```
 
 **Type Safety Benefits:**
@@ -4583,6 +4678,7 @@ export const OnNotificationEvent = createTypedEventDecorator<NotificationPayload
 - Access ChainEvent metadata via `ChainContextService.getCurrentEvent()`
 - Multiple handlers for the same event execute sequentially by dependency order
 - Return value is passed to the next handler in the chain
+- Initial arguments (if provided) are passed to all handlers and remain constant
 - Can call `ChainContextService.cancel()` or `finish()` to control execution flow
 
 ### Services
@@ -4631,11 +4727,13 @@ export const OnNotificationEvent = createTypedEventDecorator<NotificationPayload
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `waterfall` | `<T>(initial: T, handlers: ChainHandler<T>[]): Promise<T>` | Sequential execution |
-| `parallel` | `<T, R>(input: T, handlers: ((input: T) => Promise<R>)[], options?): Promise<R[]>` | Concurrent execution |
-| `race` | `<T, R>(input: T, handlers: ((input: T) => Promise<R>)[]): Promise<R>` | First result wins |
-| `allSettled` | `<T, R>(input: T, handlers: ((input: T) => Promise<R>)[]): Promise<PromiseSettledResult<R>[]>` | All results with status |
-| `pipeline` | `<TIn, TOut>(input: TIn, stages: PipelineStage[]): Promise<PipelineResult<TOut>>` | Named stages with timing |
+| `waterfall` | `<T, TArgs>(initial: T, handlers: ChainHandler<T, T, TArgs>[], options?, ...initialArgs: TArgs): Promise<T>` | Sequential execution with initial args |
+| `parallel` | `<T, R, TArgs>(input: T, handlers: ChainHandler<T, R, TArgs>[], options?, ...initialArgs: TArgs): Promise<R[]>` | Concurrent execution with initial args |
+| `race` | `<T, R, TArgs>(input: T, handlers: ChainHandler<T, R, TArgs>[], ...initialArgs: TArgs): Promise<R>` | First result wins |
+| `allSettled` | `<T, R, TArgs>(input: T, handlers: ChainHandler<T, R, TArgs>[], ...initialArgs: TArgs): Promise<PromiseSettledResult<R>[]>` | All results with status |
+| `pipeline` | `<TIn, TOut, TArgs>(input: TIn, stages: PipelineStage<unknown, unknown, TArgs>[], ...initialArgs: TArgs): Promise<PipelineResult<TOut>>` | Named stages with timing |
+
+> **Note:** All methods support optional initial arguments (`TArgs`) that are passed to every handler in the chain. These arguments remain constant throughout execution while the return value flows through each handler.
 
 #### WorkflowExecutorService
 
@@ -4645,13 +4743,21 @@ export const OnNotificationEvent = createTypedEventDecorator<NotificationPayload
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `executeWorkflow` | `<T>(name: string, data: T, steps: WorkflowStep<T>[]): Promise<T>` | Event-driven workflow |
+| `executeWorkflow` | `<T, TArgs>(name: string, data: T, steps: WorkflowStep<unknown, unknown, TArgs>[], ...initialArgs: TArgs): Promise<T>` | Event-driven workflow with initial args |
+
+> **Note:** Initial arguments passed to `executeWorkflow` are forwarded to all step handlers and `@OnChainEvent` handlers in the workflow chain.
 
 ### Interfaces
 
 ```typescript
-// Chain handler function type (no context parameter - use ChainContextService)
-type ChainHandler<T> = (input: T) => Promise<T>;
+// Chain handler function type with optional initial arguments
+// - T: The input/output type that flows through the chain
+// - R: The return type (defaults to T)
+// - TArgs: Tuple of initial argument types that remain constant (defaults to [])
+type ChainHandler<T, R = T, TArgs extends unknown[] = []> = (
+  input: T,
+  ...initialArgs: TArgs
+) => Promise<R>;
 
 // Chain execution context (managed by AsyncLocalStorage)
 interface ChainContext {
@@ -4676,10 +4782,10 @@ interface ChainEvent<T = any> {
   };
 }
 
-// Pipeline stage definition
-interface PipelineStage<T = any> {
+// Pipeline stage definition with optional initial arguments
+interface PipelineStage<TIn, TOut, TArgs extends unknown[] = []> {
   name: string;
-  handler: (data: T) => Promise<T>;
+  handler: (input: TIn, ...initialArgs: TArgs) => Promise<TOut>;
 }
 
 // Pipeline execution result
@@ -4688,11 +4794,11 @@ interface PipelineResult<T> {
   timing: Map<string, number>;
 }
 
-// Workflow step definition
-interface WorkflowStep<T> {
+// Workflow step definition with optional initial arguments
+interface WorkflowStep<T, R = T, TArgs extends unknown[] = []> {
   name: string;
-  handler: (data: T) => Promise<T>;
-  emitEvent?: string | ((data: T) => ChainEvent<T>);  // Simple string or ChainEvent factory
+  handler: (input: T, ...initialArgs: TArgs) => Promise<R>;
+  emitEvent?: string | ((data: R) => string);  // Event name or factory
 }
 
 // Plugin information
