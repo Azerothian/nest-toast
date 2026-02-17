@@ -23,7 +23,7 @@ export interface OrderData {
 })
 @Injectable()
 export class ValidatorPlugin {
-  @OnChainEvent('order:validate')
+  @OnChainEvent<OrderData>('order:validate')
   async validateOrder(data: OrderData): Promise<OrderData> {
     console.log('[Validator] Validating order...');
 

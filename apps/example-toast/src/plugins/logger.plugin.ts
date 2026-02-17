@@ -8,13 +8,13 @@ import { Plugin, OnChainEvent } from '@azerothian/toast';
 })
 @Injectable()
 export class LoggerPlugin {
-  @OnChainEvent('order:created')
+  @OnChainEvent<{ orderId: string; customerId: string }>('order:created')
   async logOrderCreated(data: { orderId: string; customerId: string }) {
     console.log(`[Logger] Order created: ${data.orderId} for customer ${data.customerId}`);
     return data;
   }
 
-  @OnChainEvent('order:processed')
+  @OnChainEvent<{ orderId: string; status: string }>('order:processed')
   async logOrderProcessed(data: { orderId: string; status: string }) {
     console.log(`[Logger] Order processed: ${data.orderId} with status ${data.status}`);
     return data;

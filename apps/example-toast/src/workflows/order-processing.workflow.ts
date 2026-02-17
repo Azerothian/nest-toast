@@ -19,7 +19,7 @@ export class OrderProcessingWorkflow {
     private readonly transformer: TransformerPlugin,
   ) {}
 
-  @OnChainEvent('workflow:order:process')
+  @OnChainEvent<OrderData>('workflow:order:process')
   async processOrder(data: OrderData): Promise<ProcessedOrder> {
     this.logger.log(`Starting order processing for customer: ${data.customerId}`, 'Workflow');
 

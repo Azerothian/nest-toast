@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:toast="http://azerothian.io/schema/toast-bpmn"
+                  id="Definitions_OrderProcess"
+                  targetNamespace="http://example.com/order-process">
+  <bpmn:process id="OrderProcess" name="Order Process" isExecutable="true">
+    <bpmn:extensionElements>
+      <toast:ProcessConfig description="Simple order processing workflow" version="1.0.0" />
+    </bpmn:extensionElements>
+
+    <bpmn:startEvent id="StartEvent_1" name="Order Received">
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:serviceTask id="Task_Validate" name="Validate Order">
+      <bpmn:extensionElements>
+        <toast:TaskConfig chainEventName="order.validate" description="Validates order data" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Task_Process" name="Process Order">
+      <bpmn:extensionElements>
+        <toast:TaskConfig chainEventName="order.process" description="Processes the order" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+      <bpmn:outgoing>Flow_3</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Task_Notify" name="Send Notification">
+      <bpmn:extensionElements>
+        <toast:TaskConfig chainEventName="order.notify" description="Sends order confirmation notification" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_3</bpmn:incoming>
+      <bpmn:outgoing>Flow_4</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="EndEvent_1" name="Order Complete">
+      <bpmn:incoming>Flow_4</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="Task_Validate" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_Validate" targetRef="Task_Process" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Task_Process" targetRef="Task_Notify" />
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="Task_Notify" targetRef="EndEvent_1" />
+  </bpmn:process>
+</bpmn:definitions>

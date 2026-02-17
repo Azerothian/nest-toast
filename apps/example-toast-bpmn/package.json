@@ -1,0 +1,29 @@
+{
+  "name": "@azerothian/toast-bpmn-example",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "nest build",
+    "dev": "nest start --watch",
+    "start": "node dist/main",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@azerothian/toast": "workspace:*",
+    "@azerothian/toast-bpmn": "workspace:*",
+    "@nestjs/common": "^10.0.0",
+    "@nestjs/config": "^3.0.0",
+    "@nestjs/core": "^10.0.0",
+    "@nestjs/event-emitter": "^2.0.0",
+    "@nestjs/platform-express": "^10.0.0",
+    "bpmn-moddle": "^9.0.1",
+    "reflect-metadata": "^0.2.0",
+    "rxjs": "^7.8.0"
+  },
+  "devDependencies": {
+    "@azerothian/tsconfig": "workspace:*",
+    "@nestjs/cli": "^10.0.0",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.0.0"
+  }
+}

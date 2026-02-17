@@ -10,7 +10,7 @@ import type { OrderData } from './validator.plugin';
 })
 @Injectable()
 export class TransformerPlugin {
-  @OnChainEvent('order:transform')
+  @OnChainEvent<OrderData>('order:transform')
   async transformOrder(data: OrderData): Promise<OrderData> {
     console.log('[Transformer] Transforming order...');
 
