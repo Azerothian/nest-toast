@@ -54,7 +54,16 @@ A BPMN workflow extension for @azerothian/toast, enabling visual workflow orches
 | | - [Distributed Workflow](#distributed-workflow) | 1647-1710 |
 | | - [Complex Multi-Step Process](#complex-multi-step-process) | 1712-1758 |
 | 14 | [API Reference](#api-reference) | 1760-1814 |
-| 15 | [Summary](#summary) | 1816-1829 |
+| 15 | [Test Cases](#test-cases) | 1825-2688 |
+| | - [Positive Test Cases](#positive-test-cases) | 1827-2254 |
+| | - [Negative Test Cases](#negative-test-cases) | 2256-2688 |
+| 16 | [Use Cases](#use-cases) | 2690-3215 |
+| | - [E-Commerce Order Processing](#e-commerce-order-processing) | 2692-2802 |
+| | - [Loan Application Pipeline](#loan-application-pipeline) | 2804-2903 |
+| | - [Document Approval Workflow](#document-approval-workflow) | 2905-3006 |
+| | - [Async Background Processing](#async-background-processing) | 3008-3113 |
+| | - [Multi-Service Integration](#multi-service-integration) | 3115-3215 |
+| 17 | [Summary](#summary) | 3217-3230 |
 
 ---
 
@@ -1819,6 +1828,1660 @@ export class LoanTasks {
 | `bpmn.task.failed` | `TaskFailedEvent` | Task execution failed |
 | `bpmn.context.serialize` | `ContextSerializeEvent` | Context serialization |
 | `bpmn.context.deserialize` | `ContextDeserializeEvent` | Context deserialization |
+
+---
+
+## Test Cases
+
+### Positive Test Cases
+
+#### @BpmnProcess Decorator
+
+**TC-P-001: Valid process registration with type parameters**
+
+```typescript
+// A correctly decorated process class should register and be discoverable
+@BpmnProcess<OrderContext, OrderInput, OrderOutput>({
+  name: 'order-processing',
+  bpmnFile: 'order-processing.bpmn',
+  executionType: 'sync',
+  processingMode: 'inline',
+})
+export class OrderProcessingProcess {}
+
+// Expected: Process registered with name 'order-processing'
+// Expected: BpmnLoaderService.getProcess('order-processing') returns definition
+// Expected: Definition has inputType=OrderInput, outputType=OrderOutput, contextType=OrderContext
+```
+
+**TC-P-002: Lifecycle hooks fire in correct order**
+
+```typescript
+@BpmnProcess<SimpleContext, SimpleInput, SimpleOutput>({
+  name: 'lifecycle-test',
+  bpmnFile: 'lifecycle-test.bpmn',
+  executionType: 'sync',
+  processingMode: 'inline',
+})
+export class LifecycleTestProcess {
+  callOrder: string[] = [];
+
+  @OnProcessStart()
+  async onStart(ctx: SimpleContext) {
+    this.callOrder.push('start');
+  }
+
+  @OnProcessComplete()
+  async onComplete(ctx: SimpleContext, output: SimpleOutput) {
+    this.callOrder.push('complete');
+  }
+}
+
+// After execution:
+// Expected: callOrder === ['start', 'complete']
+```
+
+#### @BpmnTask Decorator
+
+**TC-P-003: Task mapped to BPMN element with correct input/output**
+
+```typescript
+@Injectable()
+export class TaskMappingTests {
+  @BpmnTask<OrderInput, ValidationResult>({
+    taskId: 'Task_Validate',
+    inputType: 'OrderInput',
+    outputType: 'ValidationResult',
+  })
+  @OnChainEvent<ValidationResult, [OrderContext]>('task.validate')
+  async validate(
+    result: ValidationResult,
+    input: OrderInput,
+    @BpmnContext() ctx: OrderContext,
+  ): Promise<ValidationResult> {
+    return { valid: true, errors: [] };
+  }
+}
+
+// Expected: Task registered with id 'Task_Validate'
+// Expected: inputType resolves to OrderInput in type registry
+// Expected: outputType resolves to ValidationResult in type registry
+// Expected: Handler invoked via chain event 'task.validate'
+```
+
+**TC-P-004: Task timeout and retry options respected**
+
+```typescript
+@Injectable()
+export class RetryableTaskTests {
+  attempts = 0;
+
+  @BpmnTask({
+    taskId: 'Task_Retryable',
+    inputType: 'SimpleInput',
+    outputType: 'SimpleOutput',
+    timeout: 5000,
+    retryable: true,
+  })
+  @OnChainEvent<SimpleOutput>('task.retryable')
+  async retryableTask(result: SimpleOutput, input: SimpleInput): Promise<SimpleOutput> {
+    this.attempts++;
+    if (this.attempts < 3) {
+      throw new Error('Transient failure');
+    }
+    return { success: true };
+  }
+}
+
+// Expected: Task retries up to configured retry count
+// Expected: After retries, task succeeds on third attempt
+// Expected: If timeout exceeded, task fails with TimeoutError
+```
+
+#### @BpmnContext Decorator
+
+**TC-P-005: Context injected correctly with modifications tracked**
+
+```typescript
+@Injectable()
+export class ContextInjectionTests {
+  @BpmnTask({ taskId: 'Task_UpdateCtx' })
+  @OnChainEvent<PaymentResult, [OrderContext]>('ctx.update')
+  async updateContext(
+    result: PaymentResult,
+    input: PaymentInput,
+    @BpmnContext() ctx: OrderContext,
+  ): Promise<PaymentResult> {
+    // Context should have processId and currentStep populated
+    // Expected: ctx.processId is a valid string
+    // Expected: ctx.currentStep === 'Task_UpdateCtx'
+
+    ctx.paymentAttempts = (ctx.paymentAttempts || 0) + 1;
+
+    // Expected: ctx.paymentAttempts === 1 on first call
+    // Expected: Modification visible to subsequent tasks in the chain
+    return { transactionId: 'txn_001', status: 'success' };
+  }
+}
+```
+
+#### @OnChainEvent Handler Signature
+
+**TC-P-006: First parameter typed as TReturn**
+
+```typescript
+@Injectable()
+export class ChainEventSignatureTests {
+  @BpmnTask({ taskId: 'Task_Chain' })
+  @OnChainEvent<ValidationResult>('chain.validate')
+  async validate(
+    result: ValidationResult,  // First param is TReturn (chained value from previous handler)
+    input: OrderInput,
+  ): Promise<ValidationResult> {
+    return { valid: true, errors: [] };
+  }
+}
+
+// Expected: First handler in chain receives initial value as `result`
+// Expected: Subsequent handlers receive previous handler's return as `result`
+// Expected: Return type matches TReturn (ValidationResult)
+```
+
+**TC-P-007: Multi-argument handler with constant initial args**
+
+```typescript
+@Injectable()
+export class MultiArgHandlerTests {
+  @BpmnTask({ taskId: 'Task_MultiArg' })
+  @OnChainEvent<PaymentResult, [OrderContext, string, PaymentMethod]>('payment.multi')
+  async processPayment(
+    result: PaymentResult,              // TReturn - chained value
+    @BpmnContext() ctx: OrderContext,    // First TArgs element
+    currency: string,                    // Second TArgs element - constant
+    method: PaymentMethod,               // Third TArgs element - constant
+  ): Promise<PaymentResult> {
+    // Expected: currency and method are the constant values passed at trigger time
+    // Expected: result is the chained return from previous handler
+    return { transactionId: 'txn_002', status: 'success' };
+  }
+}
+```
+
+#### @RegisterType
+
+**TC-P-008: Type registered by interface name and with custom name**
+
+```typescript
+@RegisterType()
+export interface AutoNamedType {
+  field: string;
+}
+
+@RegisterType({ name: 'CustomPaymentResult' })
+export interface PaymentResult {
+  transactionId: string;
+  status: string;
+}
+
+@RegisterType({ schema: itemJsonSchema })
+export interface OrderItem {
+  productId: string;
+  quantity: number;
+}
+
+// Expected: typeRegistry.getType('AutoNamedType') returns the type definition
+// Expected: typeRegistry.getType('CustomPaymentResult') returns PaymentResult definition
+// Expected: typeRegistry.getType('OrderItem') includes JSON schema for runtime validation
+```
+
+#### BpmnLoaderService
+
+**TC-P-009: Loads valid BPMN file and extracts task definitions**
+
+```typescript
+const loader = app.get(BpmnLoaderService);
+
+// Load a valid BPMN file
+await loader.loadProcess('order-validation');
+
+// Expected: No errors thrown
+// Expected: loader.getProcess('order-validation') returns process definition
+// Expected: Process definition includes task list with correct IDs
+// Expected: Sequence flow connections are validated for type compatibility
+```
+
+#### BpmnExecutorService
+
+**TC-P-010: Inline sync execution returns result directly**
+
+```typescript
+const executor = app.get(BpmnExecutorService);
+
+const result = await executor.execute('order-validation', {
+  orderId: 'ORD-001',
+  items: [{ productId: 'P1', quantity: 2, price: 29.99 }],
+});
+
+// Expected: result is of type OrderOutput
+// Expected: result.status === 'approved'
+// Expected: Execution completes synchronously (no processId returned)
+```
+
+**TC-P-011: Distributed async execution returns processId**
+
+```typescript
+const executor = app.get(BpmnExecutorService);
+
+const result = await executor.execute('order-fulfillment', {
+  orderId: 'ORD-002',
+  items: [{ productId: 'P2', quantity: 1, price: 99.99 }],
+});
+
+// Expected: result.processId is a valid string
+// Expected: result.status === 'pending'
+// Expected: Process dispatched to BullMQ queue
+// Expected: Can poll for completion via executor.getStatus(result.processId)
+```
+
+#### BpmnContextService
+
+**TC-P-012: Context serialization and deserialization round-trip**
+
+```typescript
+const contextService = app.get(BpmnContextService);
+
+const original: OrderContext = {
+  processId: 'proc-001',
+  processName: 'order-fulfillment',
+  currentStep: 'Task_Validate',
+  startTime: new Date(),
+  stepHistory: [],
+  variables: {},
+  order: { orderId: 'ORD-001', items: [] },
+};
+
+// Serialize to Redis
+const contextKey = await contextService.serialize(original);
+// Expected: contextKey === 'bpmn:context:order-fulfillment:proc-001'
+
+// Deserialize from Redis
+const restored = await contextService.deserialize<OrderContext>(contextKey);
+// Expected: restored.processId === 'proc-001'
+// Expected: restored.order.orderId === 'ORD-001'
+// Expected: restored.stepHistory is an array
+```
+
+**TC-P-013: Context tracks step history**
+
+```typescript
+const contextService = app.get(BpmnContextService);
+
+// After executing multiple tasks, context should track history
+const ctx = await contextService.deserialize<OrderContext>(contextKey);
+
+// Expected: ctx.stepHistory includes entries for each completed task
+// Expected: Each entry has taskId, startTime, endTime
+// Expected: ctx.currentStep reflects the most recently executed task
+```
+
+#### Processing Modes
+
+**TC-P-014: Inline processing executes tasks sequentially**
+
+```typescript
+@BpmnProcess({
+  name: 'sequential-test',
+  bpmnFile: 'sequential-test.bpmn',
+  processingMode: 'inline',
+  executionType: 'sync',
+})
+export class SequentialTestProcess {}
+
+const executionOrder: string[] = [];
+
+@Injectable()
+export class SequentialTasks {
+  @BpmnTask({ taskId: 'Task_First' })
+  @OnChainEvent<StepResult>('seq.first')
+  async first(result: StepResult): Promise<StepResult> {
+    executionOrder.push('first');
+    return { step: 'first' };
+  }
+
+  @BpmnTask({ taskId: 'Task_Second' })
+  @OnChainEvent<StepResult>('seq.second')
+  async second(result: StepResult): Promise<StepResult> {
+    executionOrder.push('second');
+    return { step: 'second' };
+  }
+}
+
+// After execution:
+// Expected: executionOrder === ['first', 'second']
+// Expected: Context passed directly (no serialization)
+```
+
+**TC-P-015: Distributed processing dispatches to BullMQ**
+
+```typescript
+@BpmnProcess({
+  name: 'distributed-test',
+  bpmnFile: 'distributed-test.bpmn',
+  processingMode: 'distributed',
+  executionType: 'async',
+})
+export class DistributedTestProcess {}
+
+// Expected: Tasks dispatched to BullMQ queue
+// Expected: Context serialized to Redis between tasks
+// Expected: Context deserialized when worker picks up next task
+// Expected: Final result retrievable via executor.getStatus(processId)
+```
+
+#### Execution Types
+
+**TC-P-016: Synchronous execution waits and returns output**
+
+```typescript
+const executor = app.get(BpmnExecutorService);
+
+// Sync execution blocks until completion
+const result = await executor.execute('sync-process', { value: 42 });
+
+// Expected: result contains the final output (not a processId)
+// Expected: All tasks completed before execute() resolves
+// Expected: typeof result === the process's OutputType
+```
+
+**TC-P-017: Asynchronous execution returns processId immediately**
+
+```typescript
+const executor = app.get(BpmnExecutorService);
+
+// Async execution returns immediately
+const handle = await executor.execute('async-process', { value: 42 });
+
+// Expected: handle.processId is defined
+// Expected: handle.status === 'pending'
+// Expected: Process continues executing in background
+
+// Poll for result later
+const status = await executor.getStatus(handle.processId);
+// Expected: status is 'pending' | 'running' | 'completed' | 'failed'
+```
+
+#### Triggers
+
+**TC-P-018: Manual trigger starts process**
+
+```typescript
+@Injectable()
+export class TriggerTests {
+  constructor(private readonly executor: BpmnExecutorService) {}
+
+  async testManualTrigger() {
+    const result = await this.executor.execute('order-fulfillment', {
+      orderId: 'ORD-100',
+      items: [{ productId: 'P1', quantity: 1, price: 10 }],
+    });
+
+    // Expected: Process started successfully
+    // Expected: result matches expected output type
+  }
+}
+```
+
+**TC-P-019: TypeScript trigger with typed input/output**
+
+```typescript
+const OrderTrigger = TypeScriptTrigger<OrderInput, OrderOutput>('order-fulfillment');
+
+@Injectable()
+export class TypedTriggerTests {
+  constructor(
+    @InjectBpmnTrigger('order-fulfillment')
+    private readonly trigger: typeof OrderTrigger,
+  ) {}
+
+  async testTypedTrigger() {
+    const result = await this.trigger({
+      orderId: 'ORD-101',
+      items: [],
+    });
+
+    // Expected: result is typed as OrderOutput (compile-time safety)
+    // Expected: result.status is 'approved' | 'rejected'
+  }
+}
+```
+
+#### Type Validation
+
+**TC-P-020: Compatible types pass connection validation**
+
+```typescript
+// Given a BPMN file where Task_A outputs ValidationResult
+// and Task_B accepts ValidationResult as input
+
+@RegisterType()
+export interface ValidationResult {
+  valid: boolean;
+  errors: string[];
+}
+
+// Expected: BpmnLoaderService validates the connection at load time
+// Expected: No type mismatch errors thrown
+// Expected: Process loads successfully
+```
+
+---
+
+### Negative Test Cases
+
+#### @BpmnProcess Decorator
+
+**TC-N-001: Missing bpmnFile throws error**
+
+```typescript
+@BpmnProcess({
+  name: 'missing-file',
+  // bpmnFile omitted
+  executionType: 'sync',
+})
+export class MissingFileProcess {}
+
+// Expected: Error thrown at load time
+// Expected: Error message indicates bpmnFile is required
+```
+
+**TC-N-002: Invalid executionType rejected**
+
+```typescript
+@BpmnProcess({
+  name: 'invalid-exec',
+  bpmnFile: 'test.bpmn',
+  executionType: 'parallel' as any, // Invalid value
+})
+export class InvalidExecProcess {}
+
+// Expected: Error thrown at load time
+// Expected: Error indicates executionType must be 'sync' | 'async'
+```
+
+**TC-N-003: Duplicate process names rejected**
+
+```typescript
+@BpmnProcess({ name: 'duplicate-name', bpmnFile: 'a.bpmn' })
+export class ProcessA {}
+
+@BpmnProcess({ name: 'duplicate-name', bpmnFile: 'b.bpmn' })
+export class ProcessB {}
+
+// Expected: Error thrown at load time
+// Expected: Error indicates 'duplicate-name' is already registered
+```
+
+#### @BpmnTask Decorator
+
+**TC-N-004: Missing taskId throws error**
+
+```typescript
+@Injectable()
+export class MissingTaskIdTests {
+  @BpmnTask({
+    // taskId omitted
+    inputType: 'OrderInput',
+    outputType: 'ValidationResult',
+  } as any)
+  @OnChainEvent<ValidationResult>('task.missing')
+  async handle(result: ValidationResult): Promise<ValidationResult> {
+    return result;
+  }
+}
+
+// Expected: Error thrown at decoration time or load time
+// Expected: Error indicates taskId is required
+```
+
+**TC-N-005: taskId not found in BPMN file**
+
+```typescript
+@Injectable()
+export class UnmatchedTaskTests {
+  @BpmnTask({
+    taskId: 'Task_NonExistent',
+    inputType: 'OrderInput',
+    outputType: 'ValidationResult',
+  })
+  @OnChainEvent<ValidationResult>('task.unmatched')
+  async handle(result: ValidationResult, input: OrderInput): Promise<ValidationResult> {
+    return { valid: false, errors: ['Not found'] };
+  }
+}
+
+// Expected: Error thrown at load time when validating BPMN file
+// Expected: Error indicates 'Task_NonExistent' not found in BPMN definition
+```
+
+**TC-N-006: Type mismatch between inputType and registered type**
+
+```typescript
+@RegisterType()
+export interface TypeA { fieldA: string; }
+
+@RegisterType()
+export interface TypeB { fieldB: number; }
+
+// BPMN file connects Task_Source (outputType: 'TypeA') -> Task_Target (inputType: 'TypeB')
+// Expected: BpmnLoaderService throws type mismatch error at load time
+// Expected: Error message includes the incompatible type names
+```
+
+#### @BpmnContext Decorator
+
+**TC-N-007: Context type mismatch throws at load time**
+
+```typescript
+interface ProcessContext extends BaseBpmnContext {
+  order: OrderInput;
+}
+
+interface WrongContext extends BaseBpmnContext {
+  invoice: InvoiceData;
+}
+
+@BpmnProcess<ProcessContext, OrderInput, OrderOutput>({
+  name: 'ctx-mismatch',
+  bpmnFile: 'ctx-mismatch.bpmn',
+})
+export class CtxMismatchProcess {}
+
+@Injectable()
+export class CtxMismatchTasks {
+  @BpmnTask({ taskId: 'Task_Wrong' })
+  @OnChainEvent<OrderOutput, [WrongContext]>('ctx.wrong')
+  async handle(
+    result: OrderOutput,
+    input: OrderInput,
+    @BpmnContext() ctx: WrongContext, // Wrong context type
+  ): Promise<OrderOutput> {
+    return { orderId: '', status: 'rejected', message: '' };
+  }
+}
+
+// Expected: Error thrown at load time
+// Expected: Error indicates WrongContext doesn't match ProcessContext
+```
+
+**TC-N-008: @BpmnContext used outside a BPMN task handler**
+
+```typescript
+@Injectable()
+export class NonBpmnService {
+  // No @BpmnTask decorator
+  async doSomething(@BpmnContext() ctx: BaseBpmnContext) {
+    // Expected: ctx is undefined or error thrown at runtime
+    // Expected: @BpmnContext only injects in BPMN task handler context
+  }
+}
+```
+
+#### @OnChainEvent Handler Signature
+
+**TC-N-009: First param type doesn't match TReturn**
+
+```typescript
+@Injectable()
+export class WrongReturnTypeTests {
+  @BpmnTask({ taskId: 'Task_WrongReturn' })
+  @OnChainEvent<ValidationResult>('chain.wrongReturn')
+  async handle(
+    result: string,  // Should be ValidationResult, not string
+    input: OrderInput,
+  ): Promise<ValidationResult> {
+    return { valid: true, errors: [] };
+  }
+}
+
+// Expected: TypeScript compile-time error
+// Expected: First parameter must match TReturn type (ValidationResult)
+```
+
+**TC-N-010: Handler returns wrong type**
+
+```typescript
+@Injectable()
+export class WrongHandlerReturnTests {
+  @BpmnTask({ taskId: 'Task_WrongOutput' })
+  @OnChainEvent<ValidationResult>('chain.wrongOutput')
+  async handle(result: ValidationResult, input: OrderInput): Promise<string> {
+    return 'wrong type'; // Should return ValidationResult
+  }
+}
+
+// Expected: TypeScript compile-time error
+// Expected: Return type must be Promise<TReturn>
+```
+
+**TC-N-011: Missing required args from TArgs tuple**
+
+```typescript
+@Injectable()
+export class MissingArgsTests {
+  @BpmnTask({ taskId: 'Task_MissingArgs' })
+  @OnChainEvent<PaymentResult, [OrderContext, string, PaymentMethod]>('payment.missingArgs')
+  async handle(
+    result: PaymentResult,
+    @BpmnContext() ctx: OrderContext,
+    // Missing: currency and method parameters
+  ): Promise<PaymentResult> {
+    return { transactionId: '', status: 'failed' };
+  }
+}
+
+// Expected: TypeScript compile-time error for missing parameters
+// Expected: Handler signature must include all TArgs elements
+```
+
+#### @RegisterType
+
+**TC-N-012: Duplicate type name registration**
+
+```typescript
+@RegisterType({ name: 'SharedName' })
+export interface TypeOne { a: string; }
+
+@RegisterType({ name: 'SharedName' })
+export interface TypeTwo { b: number; }
+
+// Expected: Error thrown at load time
+// Expected: Error indicates 'SharedName' is already registered in type registry
+```
+
+**TC-N-013: Invalid JSON schema**
+
+```typescript
+const invalidSchema = { type: 'invalid-type', properties: null };
+
+@RegisterType({ schema: invalidSchema as any })
+export interface BadSchemaType {
+  field: string;
+}
+
+// Expected: Error thrown at registration or validation time
+// Expected: Error indicates invalid JSON schema
+```
+
+#### BpmnLoaderService
+
+**TC-N-014: File not found**
+
+```typescript
+const loader = app.get(BpmnLoaderService);
+
+await loader.loadProcess('nonexistent-file');
+
+// Expected: Error thrown with file path in message
+// Expected: Error type is FileNotFoundError or similar
+```
+
+**TC-N-015: Invalid BPMN XML**
+
+```typescript
+// Given a file at workflows/invalid.bpmn with malformed XML content:
+// "<bpmn:definitions><unclosed-tag"
+
+const loader = app.get(BpmnLoaderService);
+await loader.loadProcess('invalid');
+
+// Expected: Error thrown indicating XML parse failure
+// Expected: Error includes file name and parse position
+```
+
+**TC-N-016: XSD validation failure**
+
+```typescript
+// Given a BPMN file with invalid toast extensions:
+// <bpmn:serviceTask id="Task_1">
+//   <toast:taskConfig>
+//     <toast:invalidElement />  <!-- Not in XSD -->
+//   </toast:taskConfig>
+// </bpmn:serviceTask>
+
+const loader = app.get(BpmnLoaderService);
+await loader.loadProcess('xsd-invalid');
+
+// Expected: Error thrown with XSD validation details
+// Expected: Error identifies the invalid element and expected schema
+```
+
+**TC-N-017: Unresolvable type references**
+
+```typescript
+// BPMN file references type 'NonExistentType' in taskConfig
+// but no @RegisterType for 'NonExistentType' exists
+
+const loader = app.get(BpmnLoaderService);
+await loader.loadProcess('unresolvable-types');
+
+// Expected: Error when strictTypeChecking is true
+// Expected: Error lists all unresolvable type references
+```
+
+#### BpmnExecutorService
+
+**TC-N-018: Task handler throws error**
+
+```typescript
+@Injectable()
+export class FailingTasks {
+  @BpmnTask({ taskId: 'Task_Fail' })
+  @OnChainEvent<SimpleOutput>('task.fail')
+  async failingTask(result: SimpleOutput, input: SimpleInput): Promise<SimpleOutput> {
+    throw new Error('Payment gateway unavailable');
+  }
+}
+
+const executor = app.get(BpmnExecutorService);
+
+try {
+  await executor.execute('failing-process', { value: 1 });
+} catch (error) {
+  // Expected: Error propagated from task handler
+  // Expected: error.message includes 'Payment gateway unavailable'
+  // Expected: @OnProcessError lifecycle hook invoked
+}
+```
+
+**TC-N-019: Timeout exceeded**
+
+```typescript
+@BpmnProcess({
+  name: 'slow-process',
+  bpmnFile: 'slow.bpmn',
+  timeout: 1000, // 1 second timeout
+})
+export class SlowProcess {}
+
+@Injectable()
+export class SlowTasks {
+  @BpmnTask({ taskId: 'Task_Slow' })
+  @OnChainEvent<SimpleOutput>('task.slow')
+  async slowTask(result: SimpleOutput, input: SimpleInput): Promise<SimpleOutput> {
+    await new Promise(resolve => setTimeout(resolve, 5000)); // 5 seconds
+    return { success: true };
+  }
+}
+
+// Expected: TimeoutError thrown after 1000ms
+// Expected: @OnProcessError hook invoked with timeout error
+```
+
+**TC-N-020: Missing handler for task**
+
+```typescript
+// BPMN file defines Task_Unhandled but no @BpmnTask decorator maps to it
+
+const executor = app.get(BpmnExecutorService);
+await executor.execute('missing-handler-process', {});
+
+// Expected: Error at load time or execution time
+// Expected: Error indicates no handler registered for 'Task_Unhandled'
+```
+
+#### BpmnContextService
+
+**TC-N-021: Redis connection failure in distributed mode**
+
+```typescript
+// Configure distributed mode with unreachable Redis
+ToastBpmnModule.forRoot({
+  processingMode: 'distributed',
+  distributed: {
+    redis: { host: 'unreachable-host', port: 6379 },
+  },
+  context: { storage: 'redis' },
+});
+
+// Expected: Connection error thrown at module initialization or first use
+// Expected: Error message includes Redis connection details
+```
+
+**TC-N-022: Context key not found on deserialize**
+
+```typescript
+const contextService = app.get(BpmnContextService);
+
+const restored = await contextService.deserialize<OrderContext>(
+  'bpmn:context:nonexistent:fake-id',
+);
+
+// Expected: Error thrown indicating context key not found
+// Expected: Error includes the missing key for debugging
+```
+
+#### Processing Modes
+
+**TC-N-023: Distributed mode without Redis config**
+
+```typescript
+ToastBpmnModule.forRoot({
+  processingMode: 'distributed',
+  // distributed config omitted
+});
+
+// Expected: Error at module initialization
+// Expected: Error indicates Redis/distributed config required for distributed mode
+```
+
+**TC-N-024: Worker fails mid-process**
+
+```typescript
+// Given a distributed process with 3 tasks, worker crashes during Task_2
+
+// Expected: Process status transitions to 'failed'
+// Expected: Context preserves state up to the failed task
+// Expected: bpmn.process.failed event emitted
+// Expected: Error includes taskId of the failed step
+```
+
+#### Execution Types
+
+**TC-N-025: Sync timeout exceeded**
+
+```typescript
+@BpmnProcess({
+  name: 'sync-timeout',
+  bpmnFile: 'sync-timeout.bpmn',
+  executionType: 'sync',
+  timeout: 500,
+})
+export class SyncTimeoutProcess {}
+
+// Expected: executor.execute() rejects with TimeoutError after 500ms
+// Expected: Process marked as failed
+// Expected: Partial progress visible in context if inspected
+```
+
+**TC-N-026: Async process fails without error handler**
+
+```typescript
+@BpmnProcess({
+  name: 'async-no-error-handler',
+  bpmnFile: 'async-fail.bpmn',
+  executionType: 'async',
+})
+export class AsyncNoErrorHandlerProcess {
+  // No @OnProcessError handler defined
+}
+
+// Expected: Process fails silently (no uncaught exception)
+// Expected: executor.getStatus(processId) returns 'failed'
+// Expected: bpmn.process.failed event still emitted
+```
+
+#### Triggers
+
+**TC-N-027: Trigger for non-existent process**
+
+```typescript
+const executor = app.get(BpmnExecutorService);
+
+await executor.execute('non-existent-process', { value: 1 });
+
+// Expected: Error thrown indicating process 'non-existent-process' not found
+```
+
+**TC-N-028: Timer with invalid cron expression**
+
+```typescript
+@Injectable()
+export class InvalidTimerTriggers {
+  @TimerTrigger({
+    processName: 'daily-report',
+    cron: 'not-a-valid-cron',
+    timezone: 'UTC',
+  })
+  async trigger() {
+    return {};
+  }
+}
+
+// Expected: Error at registration time
+// Expected: Error indicates invalid cron expression
+```
+
+#### Type Validation
+
+**TC-N-029: Incompatible types between connected tasks**
+
+```typescript
+@RegisterType()
+export interface TypeA { name: string; }
+
+@RegisterType()
+export interface TypeB { count: number; }
+
+// BPMN: Task_1 (outputType: 'TypeA') ---> Task_2 (inputType: 'TypeB')
+// TypeA and TypeB are structurally incompatible
+
+// Expected: BpmnLoaderService throws at load time
+// Expected: Error: "Type mismatch on connection: TypeA is not assignable to TypeB"
+```
+
+**TC-N-030: strictTypeChecking rejects unregistered types**
+
+```typescript
+ToastBpmnModule.forRoot({
+  strictTypeChecking: true,
+  bpmnPath: './workflows',
+});
+
+// BPMN file references type 'UnregisteredType' in a task's inputType
+// No @RegisterType() for UnregisteredType exists
+
+// Expected: Error at load time when strictTypeChecking is true
+// Expected: Error lists 'UnregisteredType' as unresolvable
+// Expected: If strictTypeChecking were false, this would be a warning only
+```
+
+---
+
+## Use Cases
+
+### E-Commerce Order Processing
+
+**Scenario:** An online store processes incoming orders through validation, payment, and fulfillment steps using inline synchronous execution for immediate customer feedback.
+
+```typescript
+// --- Types ---
+@RegisterType()
+export interface OrderInput {
+  orderId: string;
+  customerId: string;
+  items: Array<{ productId: string; quantity: number; price: number }>;
+}
+
+@RegisterType()
+export interface ValidationResult {
+  valid: boolean;
+  errors: string[];
+  totalAmount: number;
+}
+
+@RegisterType()
+export interface PaymentResult {
+  transactionId: string;
+  status: 'success' | 'failed';
+}
+
+@RegisterType()
+export interface OrderConfirmation {
+  orderId: string;
+  status: 'confirmed' | 'rejected';
+  trackingNumber?: string;
+  message: string;
+}
+
+// --- Context ---
+export interface ECommerceContext extends BaseBpmnContext {
+  order: OrderInput;
+  validationResult?: ValidationResult;
+  paymentResult?: PaymentResult;
+}
+
+// --- Process ---
+@BpmnProcess<ECommerceContext, OrderInput, OrderConfirmation>({
+  name: 'ecommerce-order',
+  bpmnFile: 'ecommerce-order.bpmn',
+  executionType: 'sync',
+  processingMode: 'inline',
+  timeout: 30000,
+})
+export class ECommerceOrderProcess {
+  @OnProcessComplete()
+  async onComplete(ctx: ECommerceContext, output: OrderConfirmation) {
+    console.log(`Order ${output.orderId}: ${output.status}`);
+  }
+
+  @OnProcessError()
+  async onError(ctx: ECommerceContext, error: Error) {
+    console.error(`Order ${ctx.order?.orderId} failed: ${error.message}`);
+  }
+}
+
+// --- Tasks ---
+@Injectable()
+export class ECommerceTasks {
+  @BpmnTask({ taskId: 'Task_Validate', inputType: 'OrderInput', outputType: 'ValidationResult' })
+  @OnChainEvent<ValidationResult, [ECommerceContext]>('ecommerce.validate')
+  async validate(
+    result: ValidationResult,
+    input: OrderInput,
+    @BpmnContext() ctx: ECommerceContext,
+  ): Promise<ValidationResult> {
+    ctx.order = input;
+    const totalAmount = input.items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+    const valid = input.items.length > 0 && totalAmount > 0;
+    return { valid, errors: valid ? [] : ['Invalid order items'], totalAmount };
+  }
+
+  @BpmnTask({ taskId: 'Task_Payment', inputType: 'ValidationResult', outputType: 'PaymentResult' })
+  @OnChainEvent<PaymentResult, [ECommerceContext]>('ecommerce.payment')
+  async processPayment(
+    result: PaymentResult,
+    validation: ValidationResult,
+    @BpmnContext() ctx: ECommerceContext,
+  ): Promise<PaymentResult> {
+    ctx.validationResult = validation;
+    if (!validation.valid) {
+      return { transactionId: '', status: 'failed' };
+    }
+    // Charge payment
+    return { transactionId: `txn_${Date.now()}`, status: 'success' };
+  }
+
+  @BpmnTask({ taskId: 'Task_Confirm', inputType: 'PaymentResult', outputType: 'OrderConfirmation' })
+  @OnChainEvent<OrderConfirmation, [ECommerceContext]>('ecommerce.confirm')
+  async confirm(
+    result: OrderConfirmation,
+    payment: PaymentResult,
+    @BpmnContext() ctx: ECommerceContext,
+  ): Promise<OrderConfirmation> {
+    ctx.paymentResult = payment;
+    return {
+      orderId: ctx.order.orderId,
+      status: payment.status === 'success' ? 'confirmed' : 'rejected',
+      trackingNumber: payment.status === 'success' ? `TRK-${Date.now()}` : undefined,
+      message: payment.status === 'success' ? 'Order confirmed' : 'Payment failed',
+    };
+  }
+}
+
+// --- Module ---
+@Module({
+  imports: [
+    ToastModule.forRoot({ plugins: [] }),
+    ToastBpmnModule.forRoot({
+      bpmnPath: './workflows',
+      validateOnLoad: true,
+      strictTypeChecking: true,
+      processingMode: 'inline',
+      executionType: 'sync',
+    }),
+  ],
+  providers: [ECommerceTasks],
+})
+export class ECommerceModule {}
+
+// --- Execution ---
+const executor = app.get(BpmnExecutorService);
+const confirmation = await executor.execute('ecommerce-order', {
+  orderId: 'ORD-001',
+  customerId: 'CUST-001',
+  items: [{ productId: 'PROD-1', quantity: 2, price: 49.99 }],
+});
+// confirmation.status === 'confirmed'
+```
+
+### Loan Application Pipeline
+
+**Scenario:** A financial institution processes loan applications through credit checks with an exclusive gateway that routes to auto-approval, manual review, or rejection based on credit score thresholds.
+
+```typescript
+// --- Types ---
+@RegisterType()
+export interface LoanApplication {
+  applicantId: string;
+  amount: number;
+  term: number;
+}
+
+@RegisterType()
+export interface CreditResult {
+  score: number;
+  risk: 'low' | 'medium' | 'high';
+}
+
+@RegisterType()
+export interface LoanDecision {
+  approved: boolean;
+  reason: string;
+  pending?: boolean;
+  reviewId?: string;
+}
+
+// --- Context ---
+export interface LoanContext extends BaseBpmnContext {
+  application: LoanApplication;
+  creditResult?: CreditResult;
+}
+
+// --- Process (uses exclusive gateway in BPMN) ---
+@BpmnProcess<LoanContext, LoanApplication, LoanDecision>({
+  name: 'loan-application',
+  bpmnFile: 'loan-application.bpmn',
+  executionType: 'async',
+  processingMode: 'distributed',
+})
+export class LoanApplicationProcess {}
+
+// --- Tasks ---
+@Injectable()
+export class LoanTasks {
+  constructor(
+    private readonly creditService: CreditService,
+    private readonly reviewService: ReviewService,
+  ) {}
+
+  @BpmnTask({ taskId: 'Task_CreditCheck', inputType: 'LoanApplication', outputType: 'CreditResult' })
+  @OnChainEvent<CreditResult, [LoanContext]>('loan.creditCheck')
+  async creditCheck(
+    result: CreditResult,
+    input: LoanApplication,
+    @BpmnContext() ctx: LoanContext,
+  ): Promise<CreditResult> {
+    ctx.application = input;
+    return this.creditService.check(input.applicantId);
+  }
+
+  // Gateway routes here when score >= 750
+  @BpmnTask({ taskId: 'Task_AutoApprove', inputType: 'CreditResult', outputType: 'LoanDecision' })
+  @OnChainEvent<LoanDecision, [LoanContext]>('loan.autoApprove')
+  async autoApprove(
+    result: LoanDecision,
+    credit: CreditResult,
+    @BpmnContext() ctx: LoanContext,
+  ): Promise<LoanDecision> {
+    return { approved: true, reason: `Auto-approved: credit score ${credit.score}` };
+  }
+
+  // Gateway routes here when 600 <= score < 750
+  @BpmnTask({ taskId: 'Task_ManualReview', inputType: 'CreditResult', outputType: 'LoanDecision' })
+  @OnChainEvent<LoanDecision, [LoanContext]>('loan.manualReview')
+  async manualReview(
+    result: LoanDecision,
+    credit: CreditResult,
+    @BpmnContext() ctx: LoanContext,
+  ): Promise<LoanDecision> {
+    const reviewId = await this.reviewService.create(ctx);
+    return { approved: false, pending: true, reviewId, reason: 'Requires manual review' };
+  }
+
+  // Gateway routes here when score < 600
+  @BpmnTask({ taskId: 'Task_Reject', inputType: 'CreditResult', outputType: 'LoanDecision' })
+  @OnChainEvent<LoanDecision, [LoanContext]>('loan.reject')
+  async reject(
+    result: LoanDecision,
+    credit: CreditResult,
+    @BpmnContext() ctx: LoanContext,
+  ): Promise<LoanDecision> {
+    return { approved: false, reason: `Rejected: credit score ${credit.score} below threshold` };
+  }
+}
+
+// --- Execution ---
+const executor = app.get(BpmnExecutorService);
+const handle = await executor.execute('loan-application', {
+  applicantId: 'APP-001',
+  amount: 50000,
+  term: 36,
+});
+// handle.processId for async tracking
+// Gateway in BPMN routes based on credit score condition expressions
+```
+
+### Document Approval Workflow
+
+**Scenario:** A document goes through multi-step approval with context tracking. Each reviewer's decision is recorded in the context. Uses manual triggers for human-in-the-loop steps.
+
+```typescript
+// --- Types ---
+@RegisterType()
+export interface DocumentInput {
+  documentId: string;
+  authorId: string;
+  title: string;
+  content: string;
+}
+
+@RegisterType()
+export interface ReviewResult {
+  reviewerId: string;
+  approved: boolean;
+  comments: string;
+}
+
+@RegisterType()
+export interface ApprovalOutput {
+  documentId: string;
+  status: 'approved' | 'rejected' | 'revision-needed';
+  reviewHistory: ReviewResult[];
+}
+
+// --- Context ---
+export interface ApprovalContext extends BaseBpmnContext {
+  document: DocumentInput;
+  reviews: ReviewResult[];
+  currentReviewerIndex: number;
+}
+
+// --- Process ---
+@BpmnProcess<ApprovalContext, DocumentInput, ApprovalOutput>({
+  name: 'document-approval',
+  bpmnFile: 'document-approval.bpmn',
+  executionType: 'sync',
+  processingMode: 'inline',
+})
+export class DocumentApprovalProcess {
+  @OnProcessStart()
+  async onStart(ctx: ApprovalContext) {
+    ctx.reviews = [];
+    ctx.currentReviewerIndex = 0;
+  }
+}
+
+// --- Tasks ---
+@Injectable()
+export class ApprovalTasks {
+  constructor(private readonly notifyService: NotificationService) {}
+
+  @BpmnTask({ taskId: 'Task_InitReview', inputType: 'DocumentInput', outputType: 'ReviewResult' })
+  @OnChainEvent<ReviewResult, [ApprovalContext]>('approval.initReview')
+  async initReview(
+    result: ReviewResult,
+    input: DocumentInput,
+    @BpmnContext() ctx: ApprovalContext,
+  ): Promise<ReviewResult> {
+    ctx.document = input;
+    await this.notifyService.notifyReviewer(input.documentId);
+    // First reviewer auto-check (format, plagiarism, etc.)
+    return { reviewerId: 'system', approved: true, comments: 'Automated checks passed' };
+  }
+
+  @BpmnTask({ taskId: 'Task_ManagerReview', inputType: 'ReviewResult', outputType: 'ReviewResult' })
+  @OnChainEvent<ReviewResult, [ApprovalContext]>('approval.managerReview')
+  async managerReview(
+    result: ReviewResult,
+    prevReview: ReviewResult,
+    @BpmnContext() ctx: ApprovalContext,
+  ): Promise<ReviewResult> {
+    ctx.reviews.push(prevReview);
+    ctx.currentReviewerIndex++;
+    // Manager reviews document (simulated)
+    return { reviewerId: 'manager-001', approved: true, comments: 'Approved by manager' };
+  }
+
+  @BpmnTask({ taskId: 'Task_FinalDecision', inputType: 'ReviewResult', outputType: 'ApprovalOutput' })
+  @OnChainEvent<ApprovalOutput, [ApprovalContext]>('approval.finalDecision')
+  async finalDecision(
+    result: ApprovalOutput,
+    lastReview: ReviewResult,
+    @BpmnContext() ctx: ApprovalContext,
+  ): Promise<ApprovalOutput> {
+    ctx.reviews.push(lastReview);
+    const allApproved = ctx.reviews.every(r => r.approved);
+    return {
+      documentId: ctx.document.documentId,
+      status: allApproved ? 'approved' : 'rejected',
+      reviewHistory: ctx.reviews,
+    };
+  }
+}
+
+// --- Trigger ---
+const executor = app.get(BpmnExecutorService);
+const output = await executor.execute('document-approval', {
+  documentId: 'DOC-2024-001',
+  authorId: 'USER-001',
+  title: 'Q4 Budget Proposal',
+  content: '...',
+});
+// output.status === 'approved', output.reviewHistory.length === 2
+```
+
+### Async Background Processing
+
+**Scenario:** A long-running data pipeline that processes large datasets in the background using distributed workers and BullMQ. The caller receives a processId immediately and polls for results.
+
+```typescript
+// --- Types ---
+@RegisterType()
+export interface DataPipelineInput {
+  datasetId: string;
+  operations: string[];
+  outputFormat: 'csv' | 'parquet' | 'json';
+}
+
+@RegisterType()
+export interface TransformResult {
+  recordsProcessed: number;
+  errors: number;
+  tempLocation: string;
+}
+
+@RegisterType()
+export interface PipelineOutput {
+  datasetId: string;
+  outputUrl: string;
+  recordsProcessed: number;
+  processingTimeMs: number;
+}
+
+// --- Context ---
+export interface PipelineContext extends BaseBpmnContext {
+  pipeline: DataPipelineInput;
+  transformResult?: TransformResult;
+  startTimestamp: number;
+}
+
+// --- Process ---
+@BpmnProcess<PipelineContext, DataPipelineInput, PipelineOutput>({
+  name: 'data-pipeline',
+  bpmnFile: 'data-pipeline.bpmn',
+  executionType: 'async',
+  processingMode: 'distributed',
+})
+export class DataPipelineProcess {
+  @OnProcessStart()
+  async onStart(ctx: PipelineContext) {
+    ctx.startTimestamp = Date.now();
+  }
+
+  @OnProcessComplete()
+  async onComplete(ctx: PipelineContext, output: PipelineOutput) {
+    console.log(`Pipeline ${ctx.pipeline.datasetId} completed in ${output.processingTimeMs}ms`);
+  }
+}
+
+// --- Workers ---
+@Injectable()
+export class PipelineWorkers {
+  constructor(
+    private readonly dataService: DataService,
+    private readonly storageService: StorageService,
+  ) {}
+
+  @BpmnTask({ taskId: 'Task_Extract', inputType: 'DataPipelineInput', outputType: 'TransformResult' })
+  @OnChainEvent<TransformResult, [PipelineContext]>('pipeline.extract')
+  async extract(
+    result: TransformResult,
+    input: DataPipelineInput,
+    @BpmnContext() ctx: PipelineContext,
+  ): Promise<TransformResult> {
+    ctx.pipeline = input;
+    const records = await this.dataService.extract(input.datasetId);
+    return {
+      recordsProcessed: records.length,
+      errors: 0,
+      tempLocation: `/tmp/${input.datasetId}/extracted`,
+    };
+  }
+
+  @BpmnTask({ taskId: 'Task_Transform', inputType: 'TransformResult', outputType: 'TransformResult' })
+  @OnChainEvent<TransformResult, [PipelineContext]>('pipeline.transform')
+  async transform(
+    result: TransformResult,
+    input: TransformResult,
+    @BpmnContext() ctx: PipelineContext,
+  ): Promise<TransformResult> {
+    const transformed = await this.dataService.transform(
+      input.tempLocation,
+      ctx.pipeline.operations,
+    );
+    return {
+      recordsProcessed: transformed.count,
+      errors: transformed.errors,
+      tempLocation: `/tmp/${ctx.pipeline.datasetId}/transformed`,
+    };
+  }
+
+  @BpmnTask({ taskId: 'Task_Load', inputType: 'TransformResult', outputType: 'PipelineOutput' })
+  @OnChainEvent<PipelineOutput, [PipelineContext]>('pipeline.load')
+  async load(
+    result: PipelineOutput,
+    input: TransformResult,
+    @BpmnContext() ctx: PipelineContext,
+  ): Promise<PipelineOutput> {
+    ctx.transformResult = input;
+    const outputUrl = await this.storageService.upload(
+      input.tempLocation,
+      ctx.pipeline.outputFormat,
+    );
+    return {
+      datasetId: ctx.pipeline.datasetId,
+      outputUrl,
+      recordsProcessed: input.recordsProcessed,
+      processingTimeMs: Date.now() - ctx.startTimestamp,
+    };
+  }
+}
+
+// --- Module ---
+@Module({
+  imports: [
+    ToastModule.forRoot({ plugins: [] }),
+    ToastBpmnModule.forRoot({
+      bpmnPath: './workflows',
+      processingMode: 'distributed',
+      executionType: 'async',
+      distributed: {
+        redis: { host: 'localhost', port: 6379 },
+        queues: { default: { concurrency: 5 } },
+      },
+      context: { storage: 'redis', ttl: 86400 },
+    }),
+  ],
+  providers: [PipelineWorkers],
+})
+export class DataPipelineModule {}
+
+// --- Trigger and polling ---
+const executor = app.get(BpmnExecutorService);
+
+// Start returns immediately
+const handle = await executor.execute('data-pipeline', {
+  datasetId: 'DS-2024-001',
+  operations: ['normalize', 'deduplicate', 'aggregate'],
+  outputFormat: 'parquet',
+});
+// handle.processId is available immediately
+
+// Poll for completion
+let status = await executor.getStatus(handle.processId);
+while (status.state === 'pending' || status.state === 'running') {
+  await new Promise(resolve => setTimeout(resolve, 5000));
+  status = await executor.getStatus(handle.processId);
+}
+// status.result contains PipelineOutput when state === 'completed'
+```
+
+### Multi-Service Integration
+
+**Scenario:** A microservice orchestration workflow that coordinates multiple external services (inventory, payment, shipping, notifications) using distributed processing with Redis-based context for cross-service state sharing.
+
+```typescript
+// --- Types ---
+@RegisterType()
+export interface FulfillmentInput {
+  orderId: string;
+  customerId: string;
+  items: Array<{ sku: string; quantity: number }>;
+  shippingAddress: { street: string; city: string; zip: string };
+}
+
+@RegisterType()
+export interface InventoryReservation {
+  reservationId: string;
+  allItemsAvailable: boolean;
+  unavailableSkus: string[];
+}
+
+@RegisterType()
+export interface PaymentCharge {
+  chargeId: string;
+  status: 'charged' | 'declined';
+  amount: number;
+}
+
+@RegisterType()
+export interface ShipmentLabel {
+  trackingNumber: string;
+  carrier: string;
+  estimatedDelivery: string;
+}
+
+@RegisterType()
+export interface FulfillmentResult {
+  orderId: string;
+  status: 'fulfilled' | 'cancelled';
+  trackingNumber?: string;
+  message: string;
+}
+
+// --- Context (shared via Redis across services) ---
+export interface FulfillmentContext extends BaseBpmnContext {
+  order: FulfillmentInput;
+  reservation?: InventoryReservation;
+  payment?: PaymentCharge;
+  shipment?: ShipmentLabel;
+}
+
+// --- Process ---
+@BpmnProcess<FulfillmentContext, FulfillmentInput, FulfillmentResult>({
+  name: 'multi-service-fulfillment',
+  bpmnFile: 'multi-service-fulfillment.bpmn',
+  executionType: 'async',
+  processingMode: 'distributed',
+  timeout: 120000,
+})
+export class MultiServiceFulfillmentProcess {
+  @OnProcessStart()
+  async onStart(ctx: FulfillmentContext) {
+    console.log(`Fulfillment started for order ${ctx.variables.orderId}`);
+  }
+
+  @OnProcessError()
+  async onError(ctx: FulfillmentContext, error: Error) {
+    // Compensating transaction: release inventory if payment failed
+    if (ctx.reservation?.reservationId) {
+      console.log(`Releasing reservation ${ctx.reservation.reservationId}`);
+    }
+  }
+}
+
+// --- Service Tasks (each may run on different workers) ---
+@Injectable()
+export class FulfillmentTasks {
+  constructor(
+    private readonly inventoryClient: InventoryServiceClient,
+    private readonly paymentClient: PaymentServiceClient,
+    private readonly shippingClient: ShippingServiceClient,
+    private readonly notificationClient: NotificationServiceClient,
+  ) {}
+
+  @BpmnTask({ taskId: 'Task_ReserveInventory', inputType: 'FulfillmentInput', outputType: 'InventoryReservation' })
+  @OnChainEvent<InventoryReservation, [FulfillmentContext]>('fulfillment.reserveInventory')
+  async reserveInventory(
+    result: InventoryReservation,
+    input: FulfillmentInput,
+    @BpmnContext() ctx: FulfillmentContext,
+  ): Promise<InventoryReservation> {
+    ctx.order = input;
+    return this.inventoryClient.reserve(input.items);
+    // Context serialized to Redis after this task completes
+  }
+
+  @BpmnTask({ taskId: 'Task_ChargePayment', inputType: 'InventoryReservation', outputType: 'PaymentCharge' })
+  @OnChainEvent<PaymentCharge, [FulfillmentContext]>('fulfillment.chargePayment')
+  async chargePayment(
+    result: PaymentCharge,
+    reservation: InventoryReservation,
+    @BpmnContext() ctx: FulfillmentContext,
+  ): Promise<PaymentCharge> {
+    ctx.reservation = reservation;
+    if (!reservation.allItemsAvailable) {
+      return { chargeId: '', status: 'declined', amount: 0 };
+    }
+    // Context deserialized from Redis when this worker picks up the task
+    return this.paymentClient.charge(ctx.order.customerId, ctx.order.items);
+  }
+
+  @BpmnTask({ taskId: 'Task_CreateShipment', inputType: 'PaymentCharge', outputType: 'ShipmentLabel' })
+  @OnChainEvent<ShipmentLabel, [FulfillmentContext]>('fulfillment.createShipment')
+  async createShipment(
+    result: ShipmentLabel,
+    payment: PaymentCharge,
+    @BpmnContext() ctx: FulfillmentContext,
+  ): Promise<ShipmentLabel> {
+    ctx.payment = payment;
+    if (payment.status !== 'charged') {
+      throw new Error('Cannot ship: payment not charged');
+    }
+    return this.shippingClient.createLabel(ctx.order.shippingAddress, ctx.order.items);
+  }
+
+  @BpmnTask({ taskId: 'Task_Notify', inputType: 'ShipmentLabel', outputType: 'FulfillmentResult' })
+  @OnChainEvent<FulfillmentResult, [FulfillmentContext]>('fulfillment.notify')
+  async notifyCustomer(
+    result: FulfillmentResult,
+    shipment: ShipmentLabel,
+    @BpmnContext() ctx: FulfillmentContext,
+  ): Promise<FulfillmentResult> {
+    ctx.shipment = shipment;
+    await this.notificationClient.send(ctx.order.customerId, {
+      subject: `Order ${ctx.order.orderId} shipped!`,
+      body: `Tracking: ${shipment.trackingNumber}, ETA: ${shipment.estimatedDelivery}`,
+    });
+    return {
+      orderId: ctx.order.orderId,
+      status: 'fulfilled',
+      trackingNumber: shipment.trackingNumber,
+      message: `Shipped via ${shipment.carrier}`,
+    };
+  }
+}
+
+// --- Module ---
+@Module({
+  imports: [
+    ToastModule.forRoot({ plugins: [] }),
+    ToastBpmnModule.forRoot({
+      bpmnPath: './workflows',
+      processingMode: 'distributed',
+      executionType: 'async',
+      distributed: {
+        redis: {
+          host: process.env.REDIS_HOST || 'localhost',
+          port: parseInt(process.env.REDIS_PORT || '6379'),
+        },
+        queues: {
+          default: { concurrency: 10 },
+          priority: { concurrency: 5 },
+        },
+      },
+      context: { storage: 'redis', ttl: 86400 },
+      timing: { enabled: true },
+    }),
+  ],
+  providers: [FulfillmentTasks],
+})
+export class FulfillmentModule {}
+
+// --- Execution ---
+const executor = app.get(BpmnExecutorService);
+const handle = await executor.execute('multi-service-fulfillment', {
+  orderId: 'ORD-5001',
+  customerId: 'CUST-200',
+  items: [
+    { sku: 'SKU-A1', quantity: 2 },
+    { sku: 'SKU-B3', quantity: 1 },
+  ],
+  shippingAddress: { street: '123 Main St', city: 'Portland', zip: '97201' },
+});
+// handle.processId — track across all four microservice steps
+// Context persisted in Redis between each distributed task execution
+```
 
 ---
 
