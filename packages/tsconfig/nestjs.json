@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "extends": "./base.json",
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "outDir": "./dist",
+    "baseUrl": ".",
+    "incremental": true
+  }
+}

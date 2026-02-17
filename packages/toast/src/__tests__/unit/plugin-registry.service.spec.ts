@@ -4,6 +4,22 @@ import { PluginRegistryService } from '../../services/plugin-registry.service';
 import { Plugin } from '../../decorators/plugin.decorator';
 import { OnChainEvent } from '../../decorators/on-chain-event.decorator';
 
+// --- Test interfaces for typed handlers ---
+
+interface OrderData {
+  id: string;
+  items: string[];
+}
+
+interface ProcessedOrder extends OrderData {
+  processed: boolean;
+}
+
+interface ValidatedOrder extends OrderData {
+  validated: boolean;
+  validatedBy: string;
+}
+
 // --- Test plugin classes ---
 
 @Plugin({ name: 'base', version: '1.0.0' })
@@ -20,11 +36,52 @@ class PluginB {}
 
 @Plugin({ name: 'handler-plugin', version: '1.0.0' })
 class HandlerPlugin {
-  @OnChainEvent('order:process')
+  @OnChainEvent<unknown>('order:process')
   handleOrder(data: unknown) { return data; }
 
-  @OnChainEvent('order:**')
+  @OnChainEvent<unknown>('order:**')
   handleAllOrders(data: unknown) { return data; }
+}
+
+// --- Typed handler plugin classes ---
+
+@Plugin({ name: 'typed-handler-plugin', version: '1.0.0' })
+class TypedHandlerPlugin {
+  @OnChainEvent<OrderData>('order:validate')
+  validateOrder(order: OrderData): Promise<OrderData> {
+    return Promise.resolve(order);
+  }
+
+  @OnChainEvent<OrderData, ProcessedOrder>('order:process')
+  processOrder(order: OrderData): Promise<ProcessedOrder> {
+    return Promise.resolve({ ...order, processed: true });
+  }
+
+  @OnChainEvent<OrderData, ValidatedOrder>('order:validate-with-user')
+  validateOrderWithUser(order: OrderData): Promise<ValidatedOrder> {
+    return Promise.resolve({ ...order, validated: true, validatedBy: 'system' });
+  }
+}
+
+// --- Pre-constrained decorator factory test ---
+
+const OnOrderProcess = (eventName: string) =>
+  OnChainEvent<OrderData, ProcessedOrder>(eventName);
+
+const OnOrderValidate = (eventName: string) =>
+  OnChainEvent<OrderData, ValidatedOrder>(eventName);
+
+@Plugin({ name: 'factory-handler-plugin', version: '1.0.0' })
+class FactoryHandlerPlugin {
+  @OnOrderProcess('order:factory-process')
+  processOrder(order: OrderData): Promise<ProcessedOrder> {
+    return Promise.resolve({ ...order, processed: true });
+  }
+
+  @OnOrderValidate('order:factory-validate')
+  validateOrder(order: OrderData): Promise<ValidatedOrder> {
+    return Promise.resolve({ ...order, validated: true, validatedBy: 'factory' });
+  }
 }
 
 // Helper to build a mock DiscoveryService from instances
@@ -196,6 +253,48 @@ describe('PluginRegistryService', () => {
       await service.onModuleInit();
       expect(service.hasPlugin('base')).toBe(true);
       expect(service.hasPlugin('dependent')).toBe(false);
+    });
+  });
+
+  describe('typed event handlers', () => {
+    beforeEach(async () => {
+      service = new PluginRegistryService(
+        mockDiscovery([new TypedHandlerPlugin()]) as never,
+        {},
+      );
+      await service.onModuleInit();
+    });
+
+    it('should discover typed handlers', () => {
+      const handlers = service.getHandlersForEvent('order:validate');
+      expect(handlers).toHaveLength(1);
+    });
+
+    it('should discover handlers with different input/output types', () => {
+      const handlers = service.getHandlersForEvent('order:process');
+      expect(handlers).toHaveLength(1);
+    });
+
+    it('should discover handlers with transformed output types', () => {
+      const handlers = service.getHandlersForEvent('order:validate-with-user');
+      expect(handlers).toHaveLength(1);
+    });
+  });
+
+  describe('factory-based typed handlers', () => {
+    beforeEach(async () => {
+      service = new PluginRegistryService(
+        mockDiscovery([new FactoryHandlerPlugin()]) as never,
+        {},
+      );
+      await service.onModuleInit();
+    });
+
+    it('should discover handlers using pre-constrained factories', () => {
+      const processHandlers = service.getHandlersForEvent('order:factory-process');
+      const validateHandlers = service.getHandlersForEvent('order:factory-validate');
+      expect(processHandlers).toHaveLength(1);
+      expect(validateHandlers).toHaveLength(1);
     });
   });
 });

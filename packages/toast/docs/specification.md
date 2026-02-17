@@ -4428,39 +4428,155 @@ import { Injectable } from '@nestjs/common';
 export class MyPlugin {}
 ```
 
-#### @OnChainEvent(eventName: string)
+#### @OnChainEvent<TData, TReturn = TData>(eventName: string)
 
-Marks a method as a ChainEvent handler. When multiple plugins register handlers for the same event, they execute sequentially in plugin dependency order.
+Marks a method as a ChainEvent handler with **compile-time type safety**. When multiple plugins register handlers for the same event, they execute sequentially in plugin dependency order.
+
+**Type Parameters:**
+- `TData` - **Required**. The type of the input data the handler receives.
+- `TReturn` - Optional. The type of the return value. Defaults to `TData` if not specified.
+
+**Type Signature:**
+```typescript
+function OnChainEvent<TData, TReturn = TData>(
+  eventName: string,
+): <T extends (data: TData) => TReturn | Promise<TReturn>>(
+  target: Object,
+  propertyKey: string | symbol,
+  descriptor: TypedPropertyDescriptor<T>,
+) => TypedPropertyDescriptor<T> | void;
+```
 
 **Import:**
 - ESM: `import { OnChainEvent } from '@azerothian/toast';`
 - CommonJS: `const { OnChainEvent } = require('@azerothian/toast');`
 
+**Basic Usage:**
+
 ```typescript
 import { Injectable } from '@nestjs/common';
 import { OnChainEvent } from '@azerothian/toast';
 
+interface Order {
+  id: string;
+  items: string[];
+  total: number;
+}
+
+interface ProcessedOrder extends Order {
+  processed: boolean;
+  processedAt: Date;
+}
+
 @Injectable()
 export class OrderHandler {
-  @OnChainEvent('order:validated')
-  async handleOrderValidated(order: Order): Promise<Order> {
-    // Handler receives data directly (not wrapped in ChainEvent)
-    console.log('Processing order:', order.id);
+  // Same input/output type (TReturn defaults to TData)
+  @OnChainEvent<Order>('order:validate')
+  async validateOrder(order: Order): Promise<Order> {
+    // TypeScript enforces Order input AND Order output
+    return order;
+  }
 
-    // Can transform and return data
+  // Different input/output types
+  @OnChainEvent<Order, ProcessedOrder>('order:process')
+  async processOrder(order: Order): Promise<ProcessedOrder> {
+    // TypeScript enforces Order input AND ProcessedOrder output
     return {
       ...order,
       processed: true,
+      processedAt: new Date(),
     };
   }
 
-  @OnChainEvent('order:**')  // Wildcard pattern
-  async handleAllOrderEvents(data: any): Promise<any> {
+  // Wildcard pattern with types
+  @OnChainEvent<Order, Order>('order:**')
+  async handleAllOrderEvents(order: Order): Promise<Order> {
     // Matches all events starting with 'order:'
-    return data;
+    return order;
   }
 }
 ```
+
+**Pre-Constrained Decorator Factories:**
+
+For reusability and domain-specific type constraints, create decorator factories:
+
+```typescript
+// events/order-events.ts
+import { OnChainEvent } from '@azerothian/toast';
+
+export interface OrderData {
+  id: string;
+  items: string[];
+  total: number;
+}
+
+export interface ProcessedOrder extends OrderData {
+  processed: boolean;
+  processedAt: Date;
+}
+
+export interface ValidatedOrder extends OrderData {
+  validated: boolean;
+  validatedBy: string;
+}
+
+// Pre-constrained decorator factories
+export const OnOrderProcess = (eventName: string) =>
+  OnChainEvent<OrderData, ProcessedOrder>(eventName);
+
+export const OnOrderValidate = (eventName: string) =>
+  OnChainEvent<OrderData, ValidatedOrder>(eventName);
+
+export const OnOrderPassthrough = (eventName: string) =>
+  OnChainEvent<OrderData, OrderData>(eventName);
+```
+
+Usage in plugins:
+
+```typescript
+import { Plugin } from '@azerothian/toast';
+import { OnOrderProcess, OnOrderValidate, OrderData, ProcessedOrder, ValidatedOrder } from './events/order-events';
+
+@Plugin({ name: 'order-plugin', version: '1.0.0' })
+export class OrderPlugin {
+  @OnOrderProcess('order:process')
+  async process(order: OrderData): Promise<ProcessedOrder> {
+    // Type-safe: must return ProcessedOrder
+    return { ...order, processed: true, processedAt: new Date() };
+  }
+
+  @OnOrderValidate('order:validate')
+  async validate(order: OrderData): Promise<ValidatedOrder> {
+    // Type-safe: must return ValidatedOrder
+    return { ...order, validated: true, validatedBy: 'system' };
+  }
+}
+```
+
+**Generic Event Type Factory:**
+
+For maximum flexibility, create a generic factory:
+
+```typescript
+import { OnChainEvent } from '@azerothian/toast';
+
+// Generic factory for creating typed event decorators
+export function createTypedEventDecorator<TData, TReturn = TData>() {
+  return (eventName: string) => OnChainEvent<TData, TReturn>(eventName);
+}
+
+// Define domain-specific typed decorators
+export const OnUserEvent = createTypedEventDecorator<UserData>();
+export const OnPaymentEvent = createTypedEventDecorator<PaymentData, PaymentResult>();
+export const OnNotificationEvent = createTypedEventDecorator<NotificationPayload, void>();
+```
+
+**Type Safety Benefits:**
+- **Compile-time checking**: TypeScript catches type mismatches before runtime
+- **IDE support**: Full autocomplete and type hints for handler parameters and return types
+- **Refactoring safety**: Rename types and TypeScript will flag all affected handlers
+- **Documentation**: Types serve as self-documenting contracts for event data
 
 **Key Features:**
 - Handlers receive the data payload directly (e.g., `Order`), not wrapped in `ChainEvent`

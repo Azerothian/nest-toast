@@ -87,7 +87,7 @@ describe('Complex Workflow Integration', () => {
       @Plugin({ name: 'wf-base-plugin', version: '1.0.0' })
       @Injectable()
       class WfBasePlugin {
-        @OnChainEvent('wf:process')
+        @OnChainEvent<{ value: number }, { value: number; base: boolean }>('wf:process')
         async handle(data: { value: number }) {
           callOrder.push('wf-base-plugin');
           return { ...data, base: true };
@@ -97,7 +97,7 @@ describe('Complex Workflow Integration', () => {
       @Plugin({ name: 'wf-dep-plugin', version: '1.0.0', dependencies: ['wf-base-plugin'] })
       @Injectable()
       class WfDepPlugin {
-        @OnChainEvent('wf:process')
+        @OnChainEvent<{ value: number; base?: boolean }, { value: number; base?: boolean; dep: boolean }>('wf:process')
         async handle(data: { value: number; base?: boolean }) {
           callOrder.push('wf-dep-plugin');
           return { ...data, dep: true };
@@ -146,7 +146,7 @@ describe('Complex Workflow Integration', () => {
       class CancellingPlugin {
         constructor(private readonly context: ChainContextService) {}
 
-        @OnChainEvent('cancel:test')
+        @OnChainEvent<unknown>('cancel:test')
         async handle(data: unknown) {
           this.context.cancel(new Error('cancelled by plugin'));
           return data;
