@@ -1,4 +1,4 @@
-# @azerothian/nestjs-chained
+# @azerothian/toast
 
 A NestJS library for plugin architecture, chain execution, and workflow orchestration.
 
@@ -69,7 +69,7 @@ A NestJS library for plugin architecture, chain execution, and workflow orchestr
 ### Installation with ESM (Recommended)
 
 ```bash
-npm install @azerothian/nestjs-chained
+npm install @azerothian/toast
 ```
 
 Ensure your `package.json` includes:
@@ -83,7 +83,7 @@ Ensure your `package.json` includes:
 ### Installation with CommonJS
 
 ```bash
-npm install @azerothian/nestjs-chained
+npm install @azerothian/toast
 ```
 
 Ensure your `package.json` includes:
@@ -115,7 +115,7 @@ npm install @nestjs/common @nestjs/core @nestjs/config @nestjs/event-emitter
 
 ## Module System Support
 
-@azerothian/nestjs-chained supports both **ESM (ECMAScript Modules)** and **CommonJS** module systems, enabling seamless integration with any NestJS project regardless of your chosen module format.
+@azerothian/toast supports both **ESM (ECMAScript Modules)** and **CommonJS** module systems, enabling seamless integration with any NestJS project regardless of your chosen module format.
 
 ### ESM (Recommended)
 
@@ -124,7 +124,7 @@ ESM is the modern JavaScript module standard with first-class TypeScript support
 **Installation with ESM:**
 
 ```bash
-npm install @azerothian/nestjs-chained
+npm install @azerothian/toast
 ```
 
 **package.json configuration:**
@@ -138,9 +138,9 @@ npm install @azerothian/nestjs-chained
 **Basic import example:**
 
 ```typescript
-import { ToastModule } from '@azerothian/nestjs-chained';
-import { Plugin } from '@azerothian/nestjs-chained';
-import { ChainExecutorService } from '@azerothian/nestjs-chained';
+import { ToastModule } from '@azerothian/toast';
+import { Plugin } from '@azerothian/toast';
+import { ChainExecutorService } from '@azerothian/toast';
 ```
 
 ### CommonJS Support
@@ -150,7 +150,7 @@ CommonJS remains fully supported for legacy projects and specific deployment env
 **Installation with CommonJS:**
 
 ```bash
-npm install @azerothian/nestjs-chained
+npm install @azerothian/toast
 ```
 
 **package.json configuration:**
@@ -164,9 +164,9 @@ npm install @azerothian/nestjs-chained
 **Basic require example:**
 
 ```typescript
-const { ToastModule } = require('@azerothian/nestjs-chained');
-const { Plugin } = require('@azerothian/nestjs-chained');
-const { ChainExecutorService } = require('@azerothian/nestjs-chained');
+const { ToastModule } = require('@azerothian/toast');
+const { Plugin } = require('@azerothian/toast');
+const { ChainExecutorService } = require('@azerothian/toast');
 ```
 
 ### Package Configuration
@@ -284,14 +284,14 @@ All major exports are available in both module systems:
 
 | Export | ESM | CommonJS |
 |--------|-----|----------|
-| **ToastModule** | `import { ToastModule } from '@azerothian/nestjs-chained';` | `const { ToastModule } = require('@azerothian/nestjs-chained');` |
-| **@Plugin decorator** | `import { Plugin } from '@azerothian/nestjs-chained';` | `const { Plugin } = require('@azerothian/nestjs-chained');` |
-| **@OnChainEvent decorator** | `import { OnChainEvent } from '@azerothian/nestjs-chained';` | `const { OnChainEvent } = require('@azerothian/nestjs-chained');` |
-| **PluginRegistryService** | `import { PluginRegistryService } from '@azerothian/nestjs-chained';` | `const { PluginRegistryService } = require('@azerothian/nestjs-chained');` |
-| **ChainContextService** | `import { ChainContextService } from '@azerothian/nestjs-chained';` | `const { ChainContextService } = require('@azerothian/nestjs-chained');` |
-| **ChainExecutorService** | `import { ChainExecutorService } from '@azerothian/nestjs-chained';` | `const { ChainExecutorService } = require('@azerothian/nestjs-chained');` |
-| **WorkflowExecutorService** | `import { WorkflowExecutorService } from '@azerothian/nestjs-chained';` | `const { WorkflowExecutorService } = require('@azerothian/nestjs-chained');` |
-| **Type imports** | `import type { PluginMetadata, ChainEvent } from '@azerothian/nestjs-chained';` | `const { PluginMetadata, ChainEvent } = require('@azerothian/nestjs-chained');` |
+| **ToastModule** | `import { ToastModule } from '@azerothian/toast';` | `const { ToastModule } = require('@azerothian/toast');` |
+| **@Plugin decorator** | `import { Plugin } from '@azerothian/toast';` | `const { Plugin } = require('@azerothian/toast');` |
+| **@OnChainEvent decorator** | `import { OnChainEvent } from '@azerothian/toast';` | `const { OnChainEvent } = require('@azerothian/toast');` |
+| **PluginRegistryService** | `import { PluginRegistryService } from '@azerothian/toast';` | `const { PluginRegistryService } = require('@azerothian/toast');` |
+| **ChainContextService** | `import { ChainContextService } from '@azerothian/toast';` | `const { ChainContextService } = require('@azerothian/toast');` |
+| **ChainExecutorService** | `import { ChainExecutorService } from '@azerothian/toast';` | `const { ChainExecutorService } = require('@azerothian/toast');` |
+| **WorkflowExecutorService** | `import { WorkflowExecutorService } from '@azerothian/toast';` | `const { WorkflowExecutorService } = require('@azerothian/toast');` |
+| **Type imports** | `import type { PluginMetadata, ChainEvent } from '@azerothian/toast';` | `const { PluginMetadata, ChainEvent } = require('@azerothian/toast');` |
 
 ### Choosing a Module System
 
@@ -323,7 +323,7 @@ Converting from CommonJS to ESM is straightforward:
 
 ## Development
 
-@azerothian/nestjs-chained is developed using TypeScript and Turborepo for monorepo management, enabling modular architecture and efficient build orchestration.
+@azerothian/toast is developed using TypeScript and Turborepo for monorepo management, enabling modular architecture and efficient build orchestration.
 
 ### Technology Stack
 
@@ -338,7 +338,7 @@ Converting from CommonJS to ESM is straightforward:
 ### Monorepo Structure
 
 ```
-nestjs-chained/
+toast/
 ├── packages/
 │   ├── core/           # Core library with plugin system
 │   │   ├── src/
@@ -374,7 +374,7 @@ npm install
 npm run build
 
 # Build specific package
-npm run build --filter=@azerothian/nestjs-chained-core
+npm run build --filter=@azerothian/toast-core
 
 # Run tests
 npm test
@@ -465,7 +465,7 @@ export default defineConfig({
 
 ### Testing Overview
 
-@azerothian/nestjs-chained uses **Vitest** as its testing framework, providing fast, ESM-native test execution with excellent NestJS compatibility.
+@azerothian/toast uses **Vitest** as its testing framework, providing fast, ESM-native test execution with excellent NestJS compatibility.
 
 **Why Vitest?**
 
@@ -546,7 +546,7 @@ afterAll(() => {
 ```typescript
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Test } from '@nestjs/testing';
-import { ToastModule, PluginRegistryService, Plugin } from '@azerothian/nestjs-chained';
+import { ToastModule, PluginRegistryService, Plugin } from '@azerothian/toast';
 import { Injectable } from '@nestjs/common';
 
 describe('PluginRegistryService', () => {
@@ -969,7 +969,7 @@ describe('Performance Tests', () => {
 **test-utils/test-plugin-factory.ts:**
 
 ```typescript
-import { Plugin } from '@azerothian/nestjs-chained';
+import { Plugin } from '@azerothian/toast';
 import { Injectable } from '@nestjs/common';
 
 export interface TestPluginOptions {
@@ -1009,7 +1009,7 @@ export function createTestPlugin(options: TestPluginOptions) {
 **test-utils/mock-context.ts:**
 
 ```typescript
-import { ChainContext } from '@azerothian/nestjs-chained';
+import { ChainContext } from '@azerothian/toast';
 
 export function createMockContext(overrides?: Partial<ChainContext>): ChainContext {
   return {
@@ -1031,7 +1031,7 @@ export function createMockContext(overrides?: Partial<ChainContext>): ChainConte
 ```typescript
 // app.module.ts
 import { Module } from '@nestjs/common';
-import { ToastModule } from '@azerothian/nestjs-chained';
+import { ToastModule } from '@azerothian/toast';
 
 @Module({
   imports: [
@@ -1050,7 +1050,7 @@ export class AppModule {}
 ```typescript
 // app.module.ts
 const { Module } = require('@nestjs/common');
-const { ToastModule } = require('@azerothian/nestjs-chained');
+const { ToastModule } = require('@azerothian/toast');
 
 @Module({
   imports: [
@@ -1072,7 +1072,7 @@ export class AppModule {}
 ```typescript
 // plugins/database/database.plugin.ts
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { Plugin } from '@azerothian/nestjs-chained';
+import { Plugin } from '@azerothian/toast';
 import { ConfigService } from '@nestjs/config';
 
 @Plugin({
@@ -1106,7 +1106,7 @@ export class DatabasePlugin implements OnModuleInit, OnModuleDestroy {
 ```typescript
 // plugins/database/database.plugin.ts
 const { Injectable, OnModuleInit, OnModuleDestroy } = require('@nestjs/common');
-const { Plugin } = require('@azerothian/nestjs-chained');
+const { Plugin } = require('@azerothian/toast');
 const { ConfigService } = require('@nestjs/config');
 
 @Plugin({
@@ -1143,7 +1143,7 @@ export class DatabasePlugin implements OnModuleInit, OnModuleDestroy {
 ```typescript
 // plugins/database/database.module.ts
 import { Module } from '@nestjs/common';
-import { ToastModule } from '@azerothian/nestjs-chained';
+import { ToastModule } from '@azerothian/toast';
 import { DatabasePlugin } from './database.plugin';
 
 @Module({
@@ -1160,7 +1160,7 @@ export class DatabaseModule {}
 ```typescript
 // plugins/database/database.module.ts
 const { Module } = require('@nestjs/common');
-const { ToastModule } = require('@azerothian/nestjs-chained');
+const { ToastModule } = require('@azerothian/toast');
 const { DatabasePlugin } = require('./database.plugin');
 
 @Module({
@@ -1180,7 +1180,7 @@ export class DatabaseModule {}
 ```typescript
 // services/order.service.ts
 import { Injectable } from '@nestjs/common';
-import { ChainExecutorService } from '@azerothian/nestjs-chained';
+import { ChainExecutorService } from '@azerothian/toast';
 
 @Injectable()
 export class OrderService {
@@ -1203,7 +1203,7 @@ export class OrderService {
 ```typescript
 // services/order.service.ts
 const { Injectable } = require('@nestjs/common');
-const { ChainExecutorService } = require('@azerothian/nestjs-chained');
+const { ChainExecutorService } = require('@azerothian/toast');
 
 @Injectable()
 export class OrderService {
@@ -1226,7 +1226,7 @@ export class OrderService {
 
 ## Use Cases
 
-This section demonstrates real-world applications of @azerothian/nestjs-chained across different architectural patterns and business domains.
+This section demonstrates real-world applications of @azerothian/toast across different architectural patterns and business domains.
 
 ### Multi-Tenant SaaS Platform
 
@@ -1239,7 +1239,7 @@ This section demonstrates real-world applications of @azerothian/nestjs-chained 
 ```typescript
 // plugins/tenant-validator.plugin.ts
 import { Injectable } from '@nestjs/common';
-import { Plugin, OnChainEvent } from '@azerothian/nestjs-chained';
+import { Plugin, OnChainEvent } from '@azerothian/toast';
 
 interface Order {
   tenantId: string;
@@ -1366,7 +1366,7 @@ export class OrderService {
 ```typescript
 // services/etl.service.ts
 import { Injectable } from '@nestjs/common';
-import { ChainExecutorService } from '@azerothian/nestjs-chained';
+import { ChainExecutorService } from '@azerothian/toast';
 
 interface RawData {
   source: string;
@@ -1466,7 +1466,7 @@ export class ETLService {
 ```typescript
 // services/fulfillment.service.ts
 import { Injectable } from '@nestjs/common';
-import { ChainExecutorService } from '@azerothian/nestjs-chained';
+import { ChainExecutorService } from '@azerothian/toast';
 
 interface Order {
   id: string;
@@ -1543,7 +1543,7 @@ export class FulfillmentService {
 ```typescript
 // plugins/content-moderation/spam-detector.plugin.ts
 import { Injectable } from '@nestjs/common';
-import { Plugin, OnChainEvent, ChainContextService } from '@azerothian/nestjs-chained';
+import { Plugin, OnChainEvent, ChainContextService } from '@azerothian/toast';
 
 interface Content {
   id: string;
@@ -1695,7 +1695,7 @@ export class ContentService {
 // app.module.ts
 import { Module, DynamicModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { ToastModule } from '@azerothian/nestjs-chained';
+import { ToastModule } from '@azerothian/toast';
 
 @Module({})
 export class AppModule {
@@ -1772,7 +1772,7 @@ export class AdvancedSearchPlugin {
 ```typescript
 // services/job-processor.service.ts
 import { Injectable } from '@nestjs/common';
-import { ChainExecutorService, WorkflowExecutorService } from '@azerothian/nestjs-chained';
+import { ChainExecutorService, WorkflowExecutorService } from '@azerothian/toast';
 
 interface Job {
   id: string;
@@ -1895,7 +1895,7 @@ export class JobProcessorService {
 ```typescript
 // app.module.ts
 import { Module } from '@nestjs/common';
-import { ToastModule } from '@azerothian/nestjs-chained';
+import { ToastModule } from '@azerothian/toast';
 
 @Module({
   imports: [
@@ -1913,7 +1913,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import {
   WorkflowExecutorService,
   ChainExecutionError
-} from '@azerothian/nestjs-chained';
+} from '@azerothian/toast';
 
 interface Order {
   id: string;
@@ -2090,7 +2090,7 @@ export class OrderDebugService {
 
 ### Architecture Overview
 
-@azerothian/nestjs-chained provides three core capabilities:
+@azerothian/toast provides three core capabilities:
 
 | Capability | Purpose | Primary Service |
 |------------|---------|-----------------|
@@ -2102,7 +2102,7 @@ export class OrderDebugService {
 
 ```typescript
 // Root Module
-import { ToastModule } from '@azerothian/nestjs-chained';
+import { ToastModule } from '@azerothian/toast';
 
 @Module({
   imports: [
@@ -2157,7 +2157,7 @@ The plugin system enables modular, discoverable components with rich metadata, d
 Mark a class as a discoverable plugin with metadata:
 
 ```typescript
-import { Plugin } from '@azerothian/nestjs-chained';
+import { Plugin } from '@azerothian/toast';
 
 @Plugin({
   name: 'user-service',
@@ -2190,7 +2190,7 @@ The registry provides runtime access to all discovered plugins:
 
 ```typescript
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import { PluginRegistryService, PluginMetadata } from '@azerothian/nestjs-chained';
+import { PluginRegistryService, PluginMetadata } from '@azerothian/toast';
 
 @Injectable()
 export class MyService {
@@ -2272,7 +2272,7 @@ import {
   OnModuleDestroy,
   BeforeApplicationShutdown,
 } from '@nestjs/common';
-import { Plugin } from '@azerothian/nestjs-chained';
+import { Plugin } from '@azerothian/toast';
 
 @Plugin({ name: 'my-plugin', version: '1.0.0' })
 @Injectable()
@@ -2363,7 +2363,7 @@ Use dynamic modules for alternative implementations:
 ```typescript
 // plugins/auth/auth.module.ts
 import { Module, DynamicModule } from '@nestjs/common';
-import { ToastModule } from '@azerothian/nestjs-chained';
+import { ToastModule } from '@azerothian/toast';
 
 @Module({})
 export class AuthModule {
@@ -2394,7 +2394,7 @@ export class AuthModule {
 
 #### Dependency Resolution and Topological Sorting
 
-@azerothian/nestjs-chained uses **topological sorting** with **Kahn's algorithm** to determine the correct order for plugin initialization and @OnChainEvent handler execution. This ensures dependencies are always initialized/executed before their dependents.
+@azerothian/toast uses **topological sorting** with **Kahn's algorithm** to determine the correct order for plugin initialization and @OnChainEvent handler execution. This ensures dependencies are always initialized/executed before their dependents.
 
 **Dependency Resolution Flow:**
 
@@ -2701,7 +2701,7 @@ The chain execution system provides utilities for executing operations in sequen
 
 **Key Innovation: AsyncLocalStorage for Context Management**
 
-Unlike traditional approaches that require passing context objects through every function parameter, @azerothian/nestjs-chained uses Node.js `AsyncLocalStorage` to maintain chain state (cancellation, intermediate results) accessible from anywhere in the call stack. This means:
+Unlike traditional approaches that require passing context objects through every function parameter, @azerothian/toast uses Node.js `AsyncLocalStorage` to maintain chain state (cancellation, intermediate results) accessible from anywhere in the call stack. This means:
 
 - ✅ **No parameter threading**: Services deep in your call stack can cancel or check status
 - ✅ **Cleaner interfaces**: Handler functions only receive and return data
@@ -2747,7 +2747,7 @@ async function deepValidation(order: Order, context: Context): Promise<Order> {
 }
 ```
 
-**✅ @azerothian/nestjs-chained Pattern (AsyncLocalStorage)**
+**✅ @azerothian/toast Pattern (AsyncLocalStorage)**
 ```typescript
 // Clean interfaces - no context parameter needed
 async function processOrder(order: Order): Promise<Order> {
@@ -2782,7 +2782,7 @@ export class ValidatorService {
 
 ```typescript
 import { Injectable } from '@nestjs/common';
-import { ChainContextService } from '@azerothian/nestjs-chained';
+import { ChainContextService } from '@azerothian/toast';
 
 @Injectable()
 export class ValidatorService {
@@ -2859,7 +2859,7 @@ The executor runs handlers within a context managed by `ChainContextService`:
 
 ```typescript
 import { Injectable } from '@nestjs/common';
-import { ChainExecutorService, ChainContextService } from '@azerothian/nestjs-chained';
+import { ChainExecutorService, ChainContextService } from '@azerothian/toast';
 
 @Injectable()
 export class MyService {
@@ -3198,7 +3198,7 @@ async processOrder(order: Order): Promise<ProcessedOrder> {
 
 > **Note on Module Systems**: All code examples in this section use ESM syntax. For CommonJS equivalents, refer to the [Module System Support](#module-system-support) section or use the expandable "CommonJS Alternative" sections where provided.
 
-@azerothian/nestjs-chained provides comprehensive execution tracking that captures the full call chain history. When errors occur, they are automatically enriched with detailed traces showing which handlers executed, in what order, and how long each took.
+@azerothian/toast provides comprehensive execution tracking that captures the full call chain history. When errors occur, they are automatically enriched with detailed traces showing which handlers executed, in what order, and how long each took.
 
 **Key Benefits:**
 - 🔍 **Debug Complex Chains**: See exactly which handlers executed before failure
@@ -3565,7 +3565,7 @@ sequenceDiagram
 
 ```typescript
 import { Injectable } from '@nestjs/common';
-import { WorkflowExecutorService } from '@azerothian/nestjs-chained';
+import { WorkflowExecutorService } from '@azerothian/toast';
 
 @Injectable()
 export class OrderService {
@@ -3619,7 +3619,7 @@ Workflow events come in two types:
 ```typescript
 import { Injectable } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
-import { OnChainEvent } from '@azerothian/nestjs-chained';
+import { OnChainEvent } from '@azerothian/toast';
 
 @Injectable()
 export class OrderNotificationService {
@@ -3660,7 +3660,7 @@ The `ChainEvent` interface provides a standardized structure for workflow and ch
 The `ChainEvent` interface defines the structure used internally by the framework and when emitting events via factory functions:
 
 ```typescript
-import { ChainEvent } from '@azerothian/nestjs-chained';
+import { ChainEvent } from '@azerothian/toast';
 
 const event: ChainEvent<Order> = {
   name: 'order:validated',
@@ -3744,7 +3744,7 @@ Event listeners use the `@OnChainEvent` decorator and receive the data payload d
 
 ```typescript
 import { Injectable } from '@nestjs/common';
-import { OnChainEvent } from '@azerothian/nestjs-chained';
+import { OnChainEvent } from '@azerothian/toast';
 
 @Injectable()
 export class OrderAnalyticsService {
@@ -3776,7 +3776,7 @@ When multiple plugins register handlers for the same ChainEvent, the system exec
 Plugins with dependencies execute after their dependencies:
 
 ```typescript
-import { Plugin, OnChainEvent } from '@azerothian/nestjs-chained';
+import { Plugin, OnChainEvent } from '@azerothian/toast';
 
 @Plugin({
   name: 'logger',
@@ -3930,7 +3930,7 @@ The execution trace shows:
 A handler can mark processing as finished using `ChainContextService.finish()` to skip remaining handlers. The returned data from that handler becomes the final result:
 
 ```typescript
-import { ChainContextService } from '@azerothian/nestjs-chained';
+import { ChainContextService } from '@azerothian/toast';
 
 @Plugin({
   name: 'cache-checker',
@@ -3987,7 +3987,7 @@ When a handler calls `this.chainContext.finish()`, the chain terminates immediat
 Use the ChainEvent metadata (accessed via `ChainContextService`) to filter and route events:
 
 ```typescript
-import { ChainContextService } from '@azerothian/nestjs-chained';
+import { ChainContextService } from '@azerothian/toast';
 
 @Injectable()
 export class CriticalEventHandler {
@@ -4261,8 +4261,8 @@ ToastModule.forRoot({
   imports: [
     ToastModule.forRoot({
       pluginPaths: [
-        '@azerothian/nestjs-chained-logging',
-        '@azerothian/nestjs-chained-metrics',
+        '@azerothian/toast-logging',
+        '@azerothian/toast-metrics',
         '@mycompany/toast-plugins',
       ],
     }),
@@ -4300,7 +4300,7 @@ File paths can be relative (resolved from the application root) or absolute.
     ToastModule.forRoot({
       pluginPaths: [
         // Production plugins from npm
-        '@azerothian/nestjs-chained-auth',
+        '@azerothian/toast-auth',
         '@company/production-plugins',
 
         // Development plugins from local files
@@ -4355,7 +4355,7 @@ export default registerAs('database', () => ({
 ```typescript
 // app.module.ts
 import { ConfigModule } from '@nestjs/config';
-import { ToastModule } from '@azerothian/nestjs-chained';
+import { ToastModule } from '@azerothian/toast';
 import databaseConfig from './config/database.config';
 
 @Module({
@@ -4400,8 +4400,8 @@ export class DatabasePlugin {
 Marks a class as a discoverable plugin.
 
 **Import:**
-- ESM: `import { Plugin } from '@azerothian/nestjs-chained';`
-- CommonJS: `const { Plugin } = require('@azerothian/nestjs-chained');`
+- ESM: `import { Plugin } from '@azerothian/toast';`
+- CommonJS: `const { Plugin } = require('@azerothian/toast');`
 
 ```typescript
 interface PluginMetadata {
@@ -4416,7 +4416,7 @@ interface PluginMetadata {
 **Example:**
 
 ```typescript
-import { Plugin } from '@azerothian/nestjs-chained';
+import { Plugin } from '@azerothian/toast';
 import { Injectable } from '@nestjs/common';
 
 @Plugin({
@@ -4433,12 +4433,12 @@ export class MyPlugin {}
 Marks a method as a ChainEvent handler. When multiple plugins register handlers for the same event, they execute sequentially in plugin dependency order.
 
 **Import:**
-- ESM: `import { OnChainEvent } from '@azerothian/nestjs-chained';`
-- CommonJS: `const { OnChainEvent } = require('@azerothian/nestjs-chained');`
+- ESM: `import { OnChainEvent } from '@azerothian/toast';`
+- CommonJS: `const { OnChainEvent } = require('@azerothian/toast');`
 
 ```typescript
 import { Injectable } from '@nestjs/common';
-import { OnChainEvent } from '@azerothian/nestjs-chained';
+import { OnChainEvent } from '@azerothian/toast';
 
 @Injectable()
 export class OrderHandler {
@@ -4474,8 +4474,8 @@ export class OrderHandler {
 #### PluginRegistryService
 
 **Import:**
-- ESM: `import { PluginRegistryService } from '@azerothian/nestjs-chained';`
-- CommonJS: `const { PluginRegistryService } = require('@azerothian/nestjs-chained');`
+- ESM: `import { PluginRegistryService } from '@azerothian/toast';`
+- CommonJS: `const { PluginRegistryService } = require('@azerothian/toast');`
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
@@ -4488,8 +4488,8 @@ export class OrderHandler {
 #### ChainContextService
 
 **Import:**
-- ESM: `import { ChainContextService } from '@azerothian/nestjs-chained';`
-- CommonJS: `const { ChainContextService } = require('@azerothian/nestjs-chained');`
+- ESM: `import { ChainContextService } from '@azerothian/toast';`
+- CommonJS: `const { ChainContextService } = require('@azerothian/toast');`
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
@@ -4510,8 +4510,8 @@ export class OrderHandler {
 #### ChainExecutorService
 
 **Import:**
-- ESM: `import { ChainExecutorService } from '@azerothian/nestjs-chained';`
-- CommonJS: `const { ChainExecutorService } = require('@azerothian/nestjs-chained');`
+- ESM: `import { ChainExecutorService } from '@azerothian/toast';`
+- CommonJS: `const { ChainExecutorService } = require('@azerothian/toast');`
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
@@ -4524,8 +4524,8 @@ export class OrderHandler {
 #### WorkflowExecutorService
 
 **Import:**
-- ESM: `import { WorkflowExecutorService } from '@azerothian/nestjs-chained';`
-- CommonJS: `const { WorkflowExecutorService } = require('@azerothian/nestjs-chained');`
+- ESM: `import { WorkflowExecutorService } from '@azerothian/toast';`
+- CommonJS: `const { WorkflowExecutorService } = require('@azerothian/toast');`
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
@@ -4674,7 +4674,7 @@ Load plugins based on environment or configuration:
 ```typescript
 // app.module.ts
 import { Module, DynamicModule } from '@nestjs/common';
-import { ToastModule } from '@azerothian/nestjs-chained';
+import { ToastModule } from '@azerothian/toast';
 
 @Module({})
 export class AppModule {
@@ -4723,7 +4723,7 @@ Validate that incompatible plugins are not loaded together:
 
 // Manual validation example
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
-import { PluginRegistryService } from '@azerothian/nestjs-chained';
+import { PluginRegistryService } from '@azerothian/toast';
 
 @Injectable()
 export class CompatibilityValidatorService implements OnModuleInit {
@@ -4758,7 +4758,7 @@ Create modules that configure themselves based on options:
 
 ```typescript
 import { Module, DynamicModule } from '@nestjs/common';
-import { ToastModule } from '@azerothian/nestjs-chained';
+import { ToastModule } from '@azerothian/toast';
 
 export interface CacheModuleOptions {
   provider: 'redis' | 'memcached' | 'memory';
@@ -4864,7 +4864,7 @@ bootstrap();
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
-import { ToastModule } from '@azerothian/nestjs-chained';
+import { ToastModule } from '@azerothian/toast';
 import { DatabaseModule } from './plugins/database/database.module';
 import { AuthModule } from './plugins/auth/auth.module';
 import { UserModule } from './features/user/user.module';
@@ -4896,7 +4896,7 @@ export class AppModule {}
 const { Module } = require('@nestjs/common');
 const { ConfigModule } = require('@nestjs/config');
 const { EventEmitterModule } = require('@nestjs/event-emitter');
-const { ToastModule } = require('@azerothian/nestjs-chained');
+const { ToastModule } = require('@azerothian/toast');
 const { DatabaseModule } = require('./plugins/database/database.module');
 const { AuthModule } = require('./plugins/auth/auth.module');
 const { UserModule } = require('./features/user/user.module');
@@ -4998,7 +4998,7 @@ src/
 
 ## Summary
 
-@azerothian/nestjs-chained provides a comprehensive toolkit for building modular NestJS applications:
+@azerothian/toast provides a comprehensive toolkit for building modular NestJS applications:
 
 1. **Plugin System** - `@Plugin()` decorator and `PluginRegistryService` for discoverable, metadata-rich components with dependency management and topological sorting
 
