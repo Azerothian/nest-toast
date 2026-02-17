@@ -4,63 +4,91 @@ A NestJS library for plugin architecture, chain execution, and workflow orchestr
 
 ## Table of Contents
 
-1. [Installation](#installation)
-2. [Module System Support](#module-system-support)
-   - [ESM (Recommended)](#esm-recommended)
-   - [CommonJS Support](#commonjs-support)
-   - [Package Configuration](#package-configuration)
-   - [TypeScript Configuration](#typescript-configuration)
-   - [Import Examples](#import-examples)
-   - [Choosing a Module System](#choosing-a-module-system)
-3. [Development](#development)
-4. [Testing](#testing)
-   - [Testing Overview](#testing-overview)
-   - [Testing Setup](#testing-setup)
-   - [Positive Test Cases](#positive-test-cases)
-   - [Negative Test Cases](#negative-test-cases)
-   - [Integration Tests](#integration-tests)
-   - [Performance Tests](#performance-tests)
-   - [Test Utilities](#test-utilities)
-5. [Quick Start](#quick-start)
-6. [Use Cases](#use-cases)
-   - [Multi-Tenant SaaS Platform](#multi-tenant-saas-platform)
-   - [Data Processing Pipeline](#data-processing-pipeline)
-   - [Microservices Orchestration](#microservices-orchestration)
-   - [Content Moderation Pipeline](#content-moderation-pipeline)
-   - [Feature Flag System](#feature-flag-system)
-   - [Background Job Processing](#background-job-processing)
-7. [Core Concepts](#core-concepts)
-8. [Plugin System](#plugin-system)
-   - [@Plugin decorator](#plugin-decorator)
-   - [PluginRegistryService](#pluginregistryservice)
-   - [Lifecycle hooks](#lifecycle-hooks)
-   - [Dependency management](#dependency-management)
-   - [Dependency resolution and topological sorting](#dependency-resolution-and-topological-sorting)
-9. [Chain Execution](#chain-execution)
-   - [ChainContextService](#chaincontextservice)
-   - [ChainExecutorService](#chainexecutorservice)
-   - [Waterfall execution](#waterfall-execution)
-   - [Cancellation](#cancellation)
-   - [Parallel execution](#parallel-execution)
-   - [Race and allSettled](#race-and-allsettled)
-   - [Concurrency control](#concurrency-control)
-10. [Workflow Orchestration](#workflow-orchestration)
-   - [WorkflowExecutorService](#workflowexecutorservice)
-   - [Event-driven workflows](#event-driven-workflows)
-   - [Working with ChainEvent](#working-with-chainevent)
-   - [Pipeline stages](#pipeline-stages)
-11. [Configuration](#configuration)
-   - [ToastModule.forRoot() options](#toastmoduleforroot-options)
-   - [ToastModule.forFeature()](#toastmoduleforfeature)
-12. [API Reference](#api-reference)
-   - [Decorators](#decorators)
-   - [Services](#services)
-   - [Interfaces](#interfaces)
-13. [Advanced Patterns](#advanced-patterns)
-   - [Conditional loading](#conditional-loading)
-   - [Compatibility validation](#compatibility-validation)
-   - [Dynamic modules](#dynamic-modules)
-14. [Integration Examples](#integration-examples)
+| # | Section | Lines |
+|---|---------|-------|
+| 1 | [Installation](#installation) | 95-143 |
+| 2 | [Module System Support](#module-system-support) | 144-351 |
+| | - [ESM (Recommended)](#esm-recommended) | 148-173 |
+| | - [CommonJS Support](#commonjs-support) | 174-199 |
+| | - [Package Configuration](#package-configuration) | 200-268 |
+| | - [TypeScript Configuration](#typescript-configuration) | 269-308 |
+| | - [Import Examples](#import-examples) | 309-323 |
+| | - [Choosing a Module System](#choosing-a-module-system) | 324-351 |
+| 3 | [Development](#development) | 352-491 |
+| | - [Technology Stack](#technology-stack) | 356-365 |
+| | - [Monorepo Structure](#monorepo-structure) | 366-394 |
+| | - [Build Commands](#build-commands) | 395-419 |
+| | - [Development Workflow](#development-workflow) | 420-427 |
+| | - [Turborepo Configuration](#turborepo-configuration) | 428-449 |
+| | - [Build Strategy for Dual Module Support](#build-strategy-for-dual-module-support) | 450-491 |
+| 4 | [Testing](#testing) | 492-1052 |
+| | - [Testing Overview](#testing-overview) | 494-524 |
+| | - [Testing Setup](#testing-setup) | 525-569 |
+| | - [Positive Test Cases](#positive-test-cases) | 570-730 |
+| | - [Negative Test Cases](#negative-test-cases) | 731-861 |
+| | - [Integration Tests](#integration-tests) | 862-948 |
+| | - [Performance Tests](#performance-tests) | 949-994 |
+| | - [Test Utilities](#test-utilities) | 995-1052 |
+| 5 | [Quick Start](#quick-start) | 1053-1254 |
+| 6 | [Use Cases](#use-cases) | 1255-2116 |
+| | - [Multi-Tenant SaaS Platform](#multi-tenant-saas-platform) | 1259-1385 |
+| | - [Data Processing Pipeline](#data-processing-pipeline) | 1386-1485 |
+| | - [Microservices Orchestration](#microservices-orchestration) | 1486-1562 |
+| | - [Content Moderation Pipeline](#content-moderation-pipeline) | 1563-1713 |
+| | - [Feature Flag System](#feature-flag-system) | 1714-1791 |
+| | - [Background Job Processing](#background-job-processing) | 1792-1910 |
+| | - [Debugging Complex Chains](#debugging-complex-chains-with-execution-tracing) | 1911-2116 |
+| 7 | [Core Concepts](#core-concepts) | 2117-2177 |
+| | - [Architecture Overview](#architecture-overview) | 2119-2128 |
+| | - [Module Structure](#module-structure) | 2129-2152 |
+| | - [Key Exports](#key-exports) | 2153-2177 |
+| 8 | [Plugin System](#plugin-system) | 2178-2724 |
+| | - [@Plugin Decorator](#plugin-decorator) | 2184-2215 |
+| | - [PluginRegistryService](#pluginregistryservice) | 2216-2258 |
+| | - [Lifecycle Hooks](#lifecycle-hooks) | 2259-2333 |
+| | - [Dependency Management](#dependency-management) | 2334-2724 |
+| 9 | [Chain Execution](#chain-execution) | 2725-3274 |
+| | - [ChainContextService](#chaincontextservice) | 2740-2842 |
+| | - [ChainExecutorService](#chainexecutorservice) | 2843-2901 |
+| | - [Waterfall Execution](#waterfall-execution) | 2902-2926 |
+| | - [Waterfall with Initial Arguments](#waterfall-with-initial-arguments) | 2927-2975 |
+| | - [Cancellation](#cancellation) | 2976-3138 |
+| | - [Parallel Execution](#parallel-execution) | 3139-3154 |
+| | - [Race and allSettled](#race-and-allsettled) | 3155-3189 |
+| | - [Concurrency Control](#concurrency-control) | 3190-3247 |
+| | - [Pipeline Execution](#pipeline-execution) | 3248-3274 |
+| 10 | [Execution Tracking and Error Tracing](#execution-tracking-and-error-tracing) | 3275-3602 |
+| | - [Execution Record Interface](#execution-record-interface) | 3287-3317 |
+| | - [ChainExecutionError Class](#chainexecutionerror-class) | 3318-3354 |
+| | - [Usage Examples](#usage-examples) | 3355-3430 |
+| | - [Configuration Options](#configuration-options) | 3431-3450 |
+| | - [Trace Formats](#trace-formats) | 3451-3512 |
+| | - [Execution Flow Diagram](#execution-flow-diagram) | 3513-3544 |
+| | - [Async Handler Support](#async-handler-support) | 3545-3602 |
+| 11 | [Workflow Orchestration](#workflow-orchestration) | 3603-4231 |
+| | - [WorkflowExecutorService](#workflowexecutorservice) | 3609-3653 |
+| | - [Event-Driven Workflows](#event-driven-workflows) | 3654-3689 |
+| | - [Listening to Workflow Events](#listening-to-workflow-events) | 3690-3731 |
+| | - [Working with ChainEvent](#working-with-chainevent) | 3732-4208 |
+| | - [Pipeline Stages](#pipeline-stages) | 4209-4231 |
+| 12 | [Configuration](#configuration) | 4232-4469 |
+| | - [ToastModule.forRoot() Options](#toastmoduleforroot-options) | 4236-4302 |
+| | - [ToastModule.forFeature()](#toastmoduleforfeature) | 4303-4314 |
+| | - [Dynamic Plugin Loading](#dynamic-plugin-loading) | 4315-4415 |
+| | - [Environment Configuration](#environment-configuration) | 4416-4469 |
+| 13 | [API Reference](#api-reference) | 4470-4879 |
+| | - [Decorators](#decorators) | 4474-4711 |
+| | - [Services](#services) | 4712-4777 |
+| | - [Interfaces](#interfaces) | 4778-4879 |
+| 14 | [Advanced Patterns](#advanced-patterns) | 4880-5050 |
+| | - [Conditional Loading](#conditional-loading) | 4920-4965 |
+| | - [Compatibility Validation](#compatibility-validation) | 4966-5004 |
+| | - [Dynamic Modules](#dynamic-modules) | 5005-5050 |
+| 15 | [Integration Examples](#integration-examples) | 5051-5248 |
+| | - [Complete Application Setup](#complete-application-setup) | 5055-5176 |
+| | - [Event-Driven Architecture](#event-driven-architecture) | 5177-5212 |
+| | - [Recommended Directory Structure](#recommended-directory-structure) | 5213-5248 |
+| 16 | [Summary](#summary) | 5249-5273 |
 
 ---
 
