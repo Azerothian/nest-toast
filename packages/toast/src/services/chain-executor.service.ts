@@ -17,10 +17,11 @@ export interface ParallelOptions {
 export class ChainExecutorService {
   constructor(private readonly chainContext: ChainContextService) {}
 
-  async waterfall<T>(
+  async waterfall<T, TArgs extends unknown[] = []>(
     initial: T,
-    handlers: ChainHandler<T>[],
+    handlers: ChainHandler<T, T, TArgs>[],
     options?: WaterfallOptions,
+    ...initialArgs: TArgs
   ): Promise<T> {
     const result = await this.chainContext.run(async () => {
       let current = initial;
@@ -44,7 +45,13 @@ export class ChainExecutorService {
         trace.handlers.push(record);
 
         try {
-          current = await this.executeWithTimeout(handler, current, handlerName, options?.timeout);
+          current = await this.executeWithTimeout(
+            handler,
+            current,
+            handlerName,
+            options?.timeout,
+            ...initialArgs,
+          );
           record.endTime = Date.now();
           record.duration = record.endTime - record.startTime;
           record.success = true;
@@ -78,20 +85,21 @@ export class ChainExecutorService {
     return result;
   }
 
-  private executeWithTimeout<T>(
-    handler: ChainHandler<T>,
+  private executeWithTimeout<T, TArgs extends unknown[] = []>(
+    handler: ChainHandler<T, T, TArgs>,
     input: T,
     name: string,
     timeout?: number,
+    ...initialArgs: TArgs
   ): Promise<T> {
-    if (!timeout) return handler(input);
+    if (!timeout) return handler(input, ...initialArgs);
 
     return new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => {
         reject(new Error(`Timeout: handler "${name}" exceeded ${timeout}ms`));
       }, timeout);
 
-      handler(input)
+      handler(input, ...initialArgs)
         .then(result => {
           clearTimeout(timer);
           resolve(result);
@@ -103,13 +111,14 @@ export class ChainExecutorService {
     });
   }
 
-  async parallel<T, R = T>(
+  async parallel<T, R = T, TArgs extends unknown[] = []>(
     input: T,
-    handlers: ChainHandler<T, R>[],
+    handlers: ChainHandler<T, R, TArgs>[],
     options?: ParallelOptions,
+    ...initialArgs: TArgs
   ): Promise<R[]> {
     if (!options?.concurrency) {
-      return Promise.all(handlers.map(h => h(input)));
+      return Promise.all(handlers.map(h => h(input, ...initialArgs)));
     }
 
     const results: R[] = new Array(handlers.length);
@@ -119,7 +128,7 @@ export class ChainExecutorService {
     const worker = async (): Promise<void> => {
       while (index < handlers.length) {
         const i = index++;
-        results[i] = await handlers[i](input);
+        results[i] = await handlers[i](input, ...initialArgs);
       }
     };
 
@@ -130,30 +139,33 @@ export class ChainExecutorService {
     return results;
   }
 
-  async race<T, R = T>(
+  async race<T, R = T, TArgs extends unknown[] = []>(
     input: T,
-    handlers: ChainHandler<T, R>[],
+    handlers: ChainHandler<T, R, TArgs>[],
+    ...initialArgs: TArgs
   ): Promise<R> {
-    return Promise.race(handlers.map(h => h(input)));
+    return Promise.race(handlers.map(h => h(input, ...initialArgs)));
   }
 
-  async allSettled<T, R = T>(
+  async allSettled<T, R = T, TArgs extends unknown[] = []>(
     input: T,
-    handlers: ChainHandler<T, R>[],
+    handlers: ChainHandler<T, R, TArgs>[],
+    ...initialArgs: TArgs
   ): Promise<PromiseSettledResult<R>[]> {
-    return Promise.allSettled(handlers.map(h => h(input)));
+    return Promise.allSettled(handlers.map(h => h(input, ...initialArgs)));
   }
 
-  async pipeline<TIn, TOut>(
+  async pipeline<TIn, TOut, TArgs extends unknown[] = []>(
     input: TIn,
-    stages: PipelineStage<unknown, unknown>[],
+    stages: PipelineStage<unknown, unknown, TArgs>[],
+    ...initialArgs: TArgs
   ): Promise<PipelineResult<TOut>> {
     const timing = new Map<string, number>();
     let current: unknown = input;
 
     for (const stage of stages) {
       const start = Date.now();
-      current = await stage.handler(current);
+      current = await stage.handler(current, ...initialArgs);
       timing.set(stage.name, Date.now() - start);
     }
 

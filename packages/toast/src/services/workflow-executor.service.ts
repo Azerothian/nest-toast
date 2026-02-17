@@ -14,10 +14,11 @@ export class WorkflowExecutorService {
     private readonly chainContext: ChainContextService,
   ) {}
 
-  async executeWorkflow<T>(
+  async executeWorkflow<T, TArgs extends unknown[] = []>(
     name: string,
     initialData: T,
-    steps: WorkflowStep<unknown, unknown>[],
+    steps: WorkflowStep<unknown, unknown, TArgs>[],
+    ...initialArgs: TArgs
   ): Promise<T> {
     return this.chainContext.run(async () => {
       this.eventEmitter.emit(`workflow:${name}:started`, initialData);
@@ -32,7 +33,7 @@ export class WorkflowExecutorService {
 
         this.eventEmitter.emit(`workflow:${name}:step:${step.name}:started`, currentData);
 
-        currentData = await step.handler(currentData);
+        currentData = await step.handler(currentData, ...initialArgs);
 
         // Check after step handler
         if (this.chainContext.isCancelled() || this.chainContext.isFinished()) {
@@ -50,9 +51,16 @@ export class WorkflowExecutorService {
           const handlers = this.pluginRegistry.getHandlersForEvent(eventName);
           if (handlers.length > 0) {
             const chainHandlers = handlers.map(
-              h => async (data: unknown) => (h.instance as Record<string, Function>)[h.method](data),
+              h =>
+                async (data: unknown, ...args: unknown[]) =>
+                  (h.instance as Record<string, Function>)[h.method](data, ...args),
             );
-            currentData = await this.chainExecutor.waterfall(currentData as never, chainHandlers as never);
+            currentData = await this.chainExecutor.waterfall(
+              currentData as never,
+              chainHandlers as never,
+              undefined,
+              ...initialArgs,
+            );
             // Propagate inner cancellation to outer workflow context
             if (this.chainContext.isCancelled() || this.chainContext.isFinished()) {
               this.eventEmitter.emit(`workflow:${name}:cancelled`, currentData);

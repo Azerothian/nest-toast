@@ -1,5 +1,5 @@
-export interface WorkflowStep<T, R = T> {
+export interface WorkflowStep<T, R = T, TArgs extends unknown[] = []> {
   name: string;
-  handler: (input: T) => Promise<R>;
+  handler: (input: T, ...initialArgs: TArgs) => Promise<R>;
   emitEvent?: string | ((data: R) => string);
 }

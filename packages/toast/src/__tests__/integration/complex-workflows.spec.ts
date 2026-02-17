@@ -140,6 +140,58 @@ describe('Complex Workflow Integration', () => {
       expect(result).toEqual({ value: 0, step1: true, step2: true, step3: true });
     });
 
+    it('should pass initial args to workflow steps and @OnChainEvent handlers', async () => {
+      interface Context { userId: string }
+      const receivedArgs: Array<{ data: unknown; context: Context }> = [];
+
+      @Plugin({ name: 'args-plugin', version: '1.0.0' })
+      @Injectable()
+      class ArgsPlugin {
+        @OnChainEvent<{ value: number }, [Context]>('args:process')
+        async handle(data: { value: number }, context: Context) {
+          receivedArgs.push({ data, context });
+          return { ...data, processedBy: context.userId };
+        }
+      }
+
+      app = await Test.createTestingModule({
+        imports: [ToastModule.forRoot()],
+        providers: [ArgsPlugin],
+      }).compile();
+      await app.init();
+
+      const workflow = app.get<WorkflowExecutorService>(WorkflowExecutorService);
+      const context: Context = { userId: 'user-123' };
+
+      const result = await workflow.executeWorkflow<{ value: number }, [Context]>(
+        'args-test',
+        { value: 42 },
+        [
+          {
+            name: 'prepare',
+            handler: async (d, ctx) => {
+              receivedArgs.push({ data: d, context: ctx });
+              return { ...(d as object), prepared: true } as { value: number };
+            },
+          },
+          {
+            name: 'process',
+            handler: async (d) => d,
+            emitEvent: 'args:process',
+          },
+        ],
+        context,
+      );
+
+      // Step handler and @OnChainEvent handler should both receive the context
+      expect(receivedArgs).toHaveLength(2);
+      expect(receivedArgs[0].context).toEqual({ userId: 'user-123' });
+      expect(receivedArgs[1].context).toEqual({ userId: 'user-123' });
+
+      // Data should flow through the chain
+      expect(result).toMatchObject({ value: 42, prepared: true, processedBy: 'user-123' });
+    });
+
     it('should support cancellation via @OnChainEvent handler', async () => {
       @Plugin({ name: 'cancelling-plugin', version: '1.0.0' })
       @Injectable()

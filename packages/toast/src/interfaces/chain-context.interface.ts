@@ -11,4 +11,7 @@ export interface ChainContext {
   trackingEnabled: boolean;
 }
 
-export type ChainHandler<T, R = T> = (input: T) => Promise<R>;
+export type ChainHandler<T, R = T, TArgs extends unknown[] = []> = (
+  input: T,
+  ...initialArgs: TArgs
+) => Promise<R>;

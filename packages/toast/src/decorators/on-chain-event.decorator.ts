@@ -9,43 +9,54 @@ export interface ChainEventHandlerRecord {
 /**
  * Marks a method as a ChainEvent handler with compile-time type safety.
  *
- * @typeParam TData - The type of the input data (required)
- * @typeParam TReturn - The type of the return value (defaults to TData)
+ * @typeParam TReturn - The type of the return value (and chain input)
+ * @typeParam TArgs - Tuple type for initial arguments that remain constant through the chain
  *
  * @param eventName - The event name to listen for. Supports glob patterns like 'order:**'
  *
+ * Chain flow:
+ * ```
+ * (initial, arg1, arg2) → handler1(initial, arg1, arg2) → result1
+ *                       → handler2(result1, arg1, arg2) → result2
+ *                       → handler3(result2, arg1, arg2) → final
+ * ```
+ *
  * @example
- * // Same input/output type (TReturn defaults to TData)
+ * // Basic handler (backward compatible - no extra args)
  * @OnChainEvent<Order>('order:validate')
  * async validateOrder(order: Order): Promise<Order> {
  *   return order;
  * }
  *
  * @example
- * // Different input/output types
- * @OnChainEvent<Order, ProcessedOrder>('order:process')
- * async processOrder(order: Order): Promise<ProcessedOrder> {
- *   return { ...order, processed: true };
+ * // Handler with initial args that stay constant through the chain
+ * @OnChainEvent<Order, [OrderContext, OrderOptions]>('order:process')
+ * async processOrder(
+ *   order: Order,           // Return value from previous handler
+ *   context: OrderContext,  // Initial arg - stays constant
+ *   options: OrderOptions   // Initial arg - stays constant
+ * ): Promise<Order> {
+ *   return { ...order, processedBy: context.userId };
  * }
  *
  * @example
  * // Pre-constrained decorator factory for reusability
  * const OnOrderProcess = (eventName: string) =>
- *   OnChainEvent<OrderData, ProcessedOrder>(eventName);
+ *   OnChainEvent<ProcessedOrder, [OrderContext]>(eventName);
  *
  * @OnOrderProcess('order:process')
- * async process(order: OrderData): Promise<ProcessedOrder> {
+ * async process(order: OrderData, context: OrderContext): Promise<ProcessedOrder> {
  *   return { ...order, processed: true, processedAt: new Date() };
  * }
  */
-export function OnChainEvent<TData, TReturn = TData>(
+export function OnChainEvent<TReturn, TArgs extends unknown[] = []>(
   eventName: string,
-): <T extends (data: TData) => TReturn | Promise<TReturn>>(
+): <T extends (returnVal: TReturn, ...initialArgs: TArgs) => TReturn | Promise<TReturn>>(
   target: Object,
   propertyKey: string | symbol,
   descriptor: TypedPropertyDescriptor<T>,
 ) => TypedPropertyDescriptor<T> | void {
-  return <T extends (data: TData) => TReturn | Promise<TReturn>>(
+  return <T extends (returnVal: TReturn, ...initialArgs: TArgs) => TReturn | Promise<TReturn>>(
     target: Object,
     propertyKey: string | symbol,
     descriptor: TypedPropertyDescriptor<T>,

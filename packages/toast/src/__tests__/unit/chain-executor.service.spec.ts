@@ -22,6 +22,49 @@ describe('ChainExecutorService', () => {
       expect(result).toBe(14); // ((1+1)*2)+10
     });
 
+    it('should pass initial args to all handlers while flowing return values', async () => {
+      const receivedArgs: Array<{ input: number; arg1: string; arg2: number }> = [];
+
+      const result = await executor.waterfall<number, [string, number]>(
+        1,
+        [
+          async (n, arg1, arg2) => {
+            receivedArgs.push({ input: n, arg1, arg2 });
+            return n + 1;
+          },
+          async (n, arg1, arg2) => {
+            receivedArgs.push({ input: n, arg1, arg2 });
+            return n * 2;
+          },
+          async (n, arg1, arg2) => {
+            receivedArgs.push({ input: n, arg1, arg2 });
+            return n + arg2;
+          },
+        ],
+        undefined,
+        'context',
+        10,
+      );
+
+      // Return value should flow through: (1+1) * 2 + 10 = 14
+      expect(result).toBe(14);
+
+      // Initial args should stay constant while input flows
+      expect(receivedArgs).toEqual([
+        { input: 1, arg1: 'context', arg2: 10 },
+        { input: 2, arg1: 'context', arg2: 10 },
+        { input: 4, arg1: 'context', arg2: 10 },
+      ]);
+    });
+
+    it('should work without initial args (backward compatibility)', async () => {
+      const result = await executor.waterfall(5, [
+        async (n) => n + 1,
+        async (n) => n * 2,
+      ]);
+      expect(result).toBe(12); // (5+1)*2
+    });
+
     it('should return initial value for empty handlers', async () => {
       const result = await executor.waterfall(42, []);
       expect(result).toBe(42);
@@ -103,6 +146,20 @@ describe('ChainExecutorService', () => {
       expect(results).toEqual(['TEST', 4, 'testtest']);
     });
 
+    it('should pass initial args to all parallel handlers', async () => {
+      const results = await executor.parallel<number, string, [string]>(
+        10,
+        [
+          async (n, prefix) => `${prefix}-${n}`,
+          async (n, prefix) => `${prefix}:${n * 2}`,
+          async (n, prefix) => `${prefix}/${n + 1}`,
+        ],
+        undefined,
+        'item',
+      );
+      expect(results).toEqual(['item-10', 'item:20', 'item/11']);
+    });
+
     it('should execute with concurrency limit', async () => {
       let active = 0;
       let maxActive = 0;
@@ -152,6 +209,18 @@ describe('ChainExecutorService', () => {
       const result = await executor.race(7, [async (n) => n * 3]);
       expect(result).toBe(21);
     });
+
+    it('should pass initial args to race handlers', async () => {
+      const result = await executor.race<number, string, [string]>(
+        5,
+        [
+          async (n, prefix) => { await new Promise(r => setTimeout(r, 100)); return `${prefix}-slow`; },
+          async (n, prefix) => `${prefix}-${n}`,
+        ],
+        'result',
+      );
+      expect(result).toBe('result-5'); // Fast one wins
+    });
   });
 
   describe('allSettled()', () => {
@@ -166,6 +235,21 @@ describe('ChainExecutorService', () => {
       expect(results[2].status).toBe('fulfilled');
       if (results[0].status === 'fulfilled') expect(results[0].value).toBe(2);
       if (results[2].status === 'fulfilled') expect(results[2].value).toBe(2);
+    });
+
+    it('should pass initial args to allSettled handlers', async () => {
+      const results = await executor.allSettled<number, string, [number]>(
+        10,
+        [
+          async (n, multiplier) => `value: ${n * multiplier}`,
+          async (n, multiplier) => `double: ${n * multiplier * 2}`,
+        ],
+        2,
+      );
+      expect(results[0].status).toBe('fulfilled');
+      expect(results[1].status).toBe('fulfilled');
+      if (results[0].status === 'fulfilled') expect(results[0].value).toBe('value: 20');
+      if (results[1].status === 'fulfilled') expect(results[1].value).toBe('double: 40');
     });
   });
 
@@ -193,6 +277,38 @@ describe('ChainExecutorService', () => {
     it('should return empty result for empty stages', async () => {
       const { output } = await executor.pipeline<string, string>('hello', []);
       expect(output).toBe('hello');
+    });
+
+    it('should pass initial args to all pipeline stages', async () => {
+      interface Context { multiplier: number }
+      const receivedContexts: Context[] = [];
+
+      const { output } = await executor.pipeline<number, number, [Context]>(
+        1,
+        [
+          {
+            name: 'add',
+            handler: async (n, ctx) => {
+              receivedContexts.push(ctx);
+              return (n as number) + ctx.multiplier;
+            },
+          },
+          {
+            name: 'mul',
+            handler: async (n, ctx) => {
+              receivedContexts.push(ctx);
+              return (n as number) * ctx.multiplier;
+            },
+          },
+        ],
+        { multiplier: 3 },
+      );
+
+      // (1 + 3) * 3 = 12
+      expect(output).toBe(12);
+      expect(receivedContexts).toHaveLength(2);
+      expect(receivedContexts[0]).toEqual({ multiplier: 3 });
+      expect(receivedContexts[1]).toEqual({ multiplier: 3 });
     });
   });
 });

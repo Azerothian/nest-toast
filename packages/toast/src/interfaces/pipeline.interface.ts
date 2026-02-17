@@ -1,6 +1,6 @@
-export interface PipelineStage<TIn, TOut> {
+export interface PipelineStage<TIn, TOut, TArgs extends unknown[] = []> {
   name: string;
-  handler: (input: TIn) => Promise<TOut>;
+  handler: (input: TIn, ...initialArgs: TArgs) => Promise<TOut>;
 }
 
 export interface PipelineResult<TOut> {
