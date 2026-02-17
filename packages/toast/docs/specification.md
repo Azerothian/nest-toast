@@ -5271,3 +5271,5 @@ src/
 10. **Production-Ready** - Complete documentation with 40+ code examples, TypeScript configuration guides, and best practices for building scalable, maintainable applications
 
 11. **Execution Tracing** - Automatic capture of handler execution history with detailed error traces showing the complete call chain, timing, and failure points for debugging complex workflows
+
+12. **Extension Ecosystem** - Extensible architecture supporting companion packages like `@azerothian/toast-bpmn` for BPMN 2.0 visual workflow orchestration with type-safe execution
