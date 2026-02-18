@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { BpmnTypeRegistryService } from '../../services/bpmn-type-registry.service';
 
 const mockDiscoveryService = {

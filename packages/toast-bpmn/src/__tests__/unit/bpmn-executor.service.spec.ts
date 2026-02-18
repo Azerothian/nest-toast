@@ -20,6 +20,8 @@ function makeDefinition(overrides: Partial<BpmnProcessDefinition> = {}): BpmnPro
         name: 'Task One',
         type: 'serviceTask',
         chainEventName: 'test:task:one',
+        incoming: ['flow-1'],
+        outgoing: ['flow-2'],
       },
     ],
     flows: [
@@ -28,6 +30,7 @@ function makeDefinition(overrides: Partial<BpmnProcessDefinition> = {}): BpmnPro
     ],
     startEvents: [{ id: 'start-1', outgoing: ['flow-1'] }],
     endEvents: [{ id: 'end-1', incoming: ['flow-2'] }],
+    gateways: [],
     ...overrides,
   };
 }
@@ -80,7 +83,12 @@ function createMocks() {
     emit: vi.fn(),
   };
 
-  return { loader, contextService, validator, chainExecutor, pluginRegistry, eventEmitter };
+  const discoveryService = {
+    getProviders: vi.fn().mockReturnValue([]),
+    getControllers: vi.fn().mockReturnValue([]),
+  };
+
+  return { loader, contextService, validator, chainExecutor, pluginRegistry, eventEmitter, discoveryService };
 }
 
 function createService(mocks: ReturnType<typeof createMocks>): BpmnExecutorService {
@@ -91,6 +99,7 @@ function createService(mocks: ReturnType<typeof createMocks>): BpmnExecutorServi
     mocks.chainExecutor as any,
     mocks.pluginRegistry as any,
     mocks.eventEmitter as any,
+    mocks.discoveryService as any,
   );
 }
 
@@ -175,7 +184,7 @@ describe('BpmnExecutorService', () => {
     it('should pass through input when task has no chainEventName', async () => {
       const definition = makeDefinition({
         tasks: [
-          { id: 'task-1', name: 'Task One', type: 'serviceTask' },
+          { id: 'task-1', name: 'Task One', type: 'serviceTask', incoming: ['flow-1'], outgoing: ['flow-2'] },
         ],
       });
       mocks.loader.getDefinition.mockReturnValue(definition);
@@ -215,14 +224,14 @@ describe('BpmnExecutorService', () => {
 
       // After successful execution, status should be completed
       const status = await service.getStatus('pid-123');
-      expect(status).toBe('completed');
+      expect(status).toEqual({ status: 'completed', currentStep: '' });
     });
 
     it('should fall back to context service for unknown processId', async () => {
-      mocks.contextService.get.mockResolvedValue({ status: 'completed' });
+      mocks.contextService.get.mockResolvedValue({ status: 'completed', currentStep: 'task-1' });
 
       const status = await service.getStatus('other-id');
-      expect(status).toBe('completed');
+      expect(status).toEqual({ status: 'completed', currentStep: 'task-1' });
     });
 
     it('should return undefined when process not found anywhere', async () => {

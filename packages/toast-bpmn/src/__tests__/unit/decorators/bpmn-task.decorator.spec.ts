@@ -1,5 +1,7 @@
+import { describe, it, expect } from 'vitest';
 import 'reflect-metadata';
-import { BpmnTask, BpmnTaskOptions, BpmnTaskHandlerRecord } from '../../../decorators/bpmn-task.decorator';
+import { BpmnTask, BpmnTaskHandlerRecord } from '../../../decorators/bpmn-task.decorator';
+import type { BpmnTaskOptions } from '../../../interfaces/bpmn-task.interface';
 import { BPMN_TASK_METADATA_KEY, BPMN_TASK_HANDLERS_KEY } from '../../../constants';
 
 describe('BpmnTask decorator', () => {

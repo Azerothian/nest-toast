@@ -87,13 +87,14 @@ describe('TC-P-006 to TC-P-010: Type Validation and Structural Checks', () => {
       const definition = {
         name: 'NoEndProcess',
         tasks: [
-          { id: 'task1', name: 'Task 1', type: 'serviceTask' as const, chainEventName: 'some.event' },
+          { id: 'task1', name: 'Task 1', type: 'serviceTask' as const, chainEventName: 'some.event', incoming: [], outgoing: [] },
         ],
         flows: [
           { id: 'flow1', sourceRef: 'start1', targetRef: 'task1' },
         ],
         startEvents: [{ id: 'start1', name: 'Start', outgoing: ['flow1'] }],
         endEvents: [],
+        gateways: [],
       };
       const result = validator.validate(definition);
 
@@ -107,8 +108,8 @@ describe('TC-P-006 to TC-P-010: Type Validation and Structural Checks', () => {
       const definition = {
         name: 'DuplicateIdProcess',
         tasks: [
-          { id: 'task1', name: 'Task A', type: 'serviceTask' as const, chainEventName: 'event.a' },
-          { id: 'task1', name: 'Task B', type: 'serviceTask' as const, chainEventName: 'event.b' },
+          { id: 'task1', name: 'Task A', type: 'serviceTask' as const, chainEventName: 'event.a', incoming: [], outgoing: [] },
+          { id: 'task1', name: 'Task B', type: 'serviceTask' as const, chainEventName: 'event.b', incoming: [], outgoing: [] },
         ],
         flows: [
           { id: 'flow1', sourceRef: 'start1', targetRef: 'task1' },
@@ -116,6 +117,7 @@ describe('TC-P-006 to TC-P-010: Type Validation and Structural Checks', () => {
         ],
         startEvents: [{ id: 'start1', name: 'Start', outgoing: ['flow1'] }],
         endEvents: [{ id: 'end1', name: 'End', incoming: ['flow2'] }],
+        gateways: [],
       };
       const result = validator.validate(definition);
 
@@ -139,7 +141,7 @@ describe('TC-P-006 to TC-P-010: Type Validation and Structural Checks', () => {
       const definition = {
         name: 'InvalidFlowProcess',
         tasks: [
-          { id: 'task1', name: 'Task 1', type: 'serviceTask' as const, chainEventName: 'some.event' },
+          { id: 'task1', name: 'Task 1', type: 'serviceTask' as const, chainEventName: 'some.event', incoming: [], outgoing: [] },
         ],
         flows: [
           { id: 'flow1', sourceRef: 'start1', targetRef: 'task1' },
@@ -148,6 +150,7 @@ describe('TC-P-006 to TC-P-010: Type Validation and Structural Checks', () => {
         ],
         startEvents: [{ id: 'start1', name: 'Start', outgoing: ['flow1'] }],
         endEvents: [{ id: 'end1', name: 'End', incoming: ['flow2'] }],
+        gateways: [],
       };
       const result = validator.validate(definition);
 
@@ -159,7 +162,7 @@ describe('TC-P-006 to TC-P-010: Type Validation and Structural Checks', () => {
       const definition = {
         name: 'InvalidTargetProcess',
         tasks: [
-          { id: 'task1', name: 'Task 1', type: 'serviceTask' as const, chainEventName: 'some.event' },
+          { id: 'task1', name: 'Task 1', type: 'serviceTask' as const, chainEventName: 'some.event', incoming: [], outgoing: [] },
         ],
         flows: [
           { id: 'flow1', sourceRef: 'start1', targetRef: 'task1' },
@@ -168,6 +171,7 @@ describe('TC-P-006 to TC-P-010: Type Validation and Structural Checks', () => {
         ],
         startEvents: [{ id: 'start1', name: 'Start', outgoing: ['flow1'] }],
         endEvents: [{ id: 'end1', name: 'End', incoming: ['flow2'] }],
+        gateways: [],
       };
       const result = validator.validate(definition);
 

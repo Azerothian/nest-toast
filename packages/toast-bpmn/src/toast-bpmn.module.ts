@@ -6,6 +6,7 @@ import { BpmnLoaderService } from './services/bpmn-loader.service';
 import { BpmnContextService } from './services/bpmn-context.service';
 import { BpmnValidatorService } from './services/bpmn-validator.service';
 import { BpmnExecutorService } from './services/bpmn-executor.service';
+import { BpmnTriggerService } from './services/bpmn-trigger.service';
 import type { ToastBpmnModuleOptions } from './interfaces/bpmn-module-options.interface';
 
 @Module({})
@@ -22,6 +23,7 @@ export class ToastBpmnModule {
         BpmnContextService,
         BpmnValidatorService,
         BpmnExecutorService,
+        BpmnTriggerService,
       ],
       exports: [
         BpmnTypeRegistryService,
@@ -29,6 +31,7 @@ export class ToastBpmnModule {
         BpmnContextService,
         BpmnValidatorService,
         BpmnExecutorService,
+        BpmnTriggerService,
       ],
     };
   }

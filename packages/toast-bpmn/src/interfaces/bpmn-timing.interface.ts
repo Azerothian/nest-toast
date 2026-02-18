@@ -4,6 +4,7 @@ export interface TaskTiming {
   startedAt: Date;
   completedAt: Date;
   duration: number; // ms
+  queueTime?: number; // ms - time spent waiting in queue (distributed mode)
 }
 
 export interface ProcessTiming {
@@ -12,5 +13,8 @@ export interface ProcessTiming {
   startedAt: Date;
   completedAt: Date;
   duration: number; // ms
+  totalDuration: number; // ms - wall-clock time including queue time
+  queueTime?: number; // ms - time spent waiting in queue (distributed mode)
+  executionTime: number; // ms - actual execution time excluding queue
   tasks: TaskTiming[];
 }

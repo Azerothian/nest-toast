@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:toast="http://azerothian.io/schema/toast-bpmn"
+                  id="Definitions_GW"
+                  targetNamespace="http://example.com/gateway">
+  <bpmn:process id="GatewayProcess" name="Gateway Process" isExecutable="true">
+    <bpmn:startEvent id="Start_1" name="Start">
+      <bpmn:outgoing>Flow_ToGW</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:exclusiveGateway id="GW_1" name="Check Amount" default="Flow_Low">
+      <bpmn:incoming>Flow_ToGW</bpmn:incoming>
+      <bpmn:outgoing>Flow_High</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Low</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:serviceTask id="Task_High" name="High Value">
+      <bpmn:extensionElements>
+        <toast:TaskConfig chainEventName="gateway.high" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_High</bpmn:incoming>
+      <bpmn:outgoing>Flow_HighEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Task_Low" name="Low Value">
+      <bpmn:extensionElements>
+        <toast:TaskConfig chainEventName="gateway.low" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Low</bpmn:incoming>
+      <bpmn:outgoing>Flow_LowEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="End_1" name="End">
+      <bpmn:incoming>Flow_HighEnd</bpmn:incoming>
+      <bpmn:incoming>Flow_LowEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="Flow_ToGW" sourceRef="Start_1" targetRef="GW_1" />
+    <bpmn:sequenceFlow id="Flow_High" sourceRef="GW_1" targetRef="Task_High">
+      <bpmn:conditionExpression>data.amount > 100</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Low" sourceRef="GW_1" targetRef="Task_Low" />
+    <bpmn:sequenceFlow id="Flow_HighEnd" sourceRef="Task_High" targetRef="End_1" />
+    <bpmn:sequenceFlow id="Flow_LowEnd" sourceRef="Task_Low" targetRef="End_1" />
+  </bpmn:process>
+</bpmn:definitions>

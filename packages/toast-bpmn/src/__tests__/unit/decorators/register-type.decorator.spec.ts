@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import 'reflect-metadata';
 import { RegisterType, RegisterTypeMetadata } from '../../../decorators/register-type.decorator';
 import { BPMN_TYPE_METADATA_KEY } from '../../../constants';

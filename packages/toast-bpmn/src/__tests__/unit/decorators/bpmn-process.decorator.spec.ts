@@ -1,5 +1,7 @@
+import { describe, it, expect } from 'vitest';
 import 'reflect-metadata';
-import { BpmnProcess, BpmnProcessOptions } from '../../../decorators/bpmn-process.decorator';
+import { BpmnProcess } from '../../../decorators/bpmn-process.decorator';
+import type { BpmnProcessOptions } from '../../../interfaces/bpmn-process.interface';
 import { BPMN_PROCESS_METADATA_KEY } from '../../../constants';
 
 describe('BpmnProcess decorator', () => {

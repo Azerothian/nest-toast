@@ -49,4 +49,8 @@ export interface ToastBpmnModuleOptions {
   timing?: TimingConfig;
   debugging?: DebuggingConfig;
   typeDiscovery?: TypeDiscoveryConfig;
+  validateOnLoad?: boolean;
+  strictTypeChecking?: boolean;
+  processingMode?: 'sequential' | 'distributed';
+  executionType?: 'sync' | 'async';
 }

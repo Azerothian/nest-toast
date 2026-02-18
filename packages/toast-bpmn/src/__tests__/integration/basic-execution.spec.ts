@@ -87,8 +87,8 @@ describe('TC-P-001 to TC-P-005: Basic BPMN Execution', () => {
     const emitter = moduleRef.get(EventEmitter2);
 
     const emittedEvents: string[] = [];
-    emitter.onAny((event: string) => {
-      emittedEvents.push(event);
+    emitter.onAny((event: string | string[]) => {
+      if (typeof event === 'string') emittedEvents.push(event);
     });
 
     await executor.execute('SimpleProcess', { x: 1 });

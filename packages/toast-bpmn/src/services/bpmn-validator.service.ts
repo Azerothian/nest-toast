@@ -95,6 +95,7 @@ export class BpmnValidatorService {
     for (const se of definition.startEvents) elementIds.add(se.id);
     for (const ee of definition.endEvents) elementIds.add(ee.id);
     for (const t of definition.tasks) elementIds.add(t.id);
+    for (const g of definition.gateways) elementIds.add(g.id);
 
     // Check flows reference valid elements
     for (const flow of definition.flows) {

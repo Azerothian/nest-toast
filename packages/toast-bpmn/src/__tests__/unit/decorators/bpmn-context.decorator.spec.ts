@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import 'reflect-metadata';
 import { BpmnContext } from '../../../decorators/bpmn-context.decorator';
 import { BPMN_CONTEXT_METADATA_KEY } from '../../../constants';

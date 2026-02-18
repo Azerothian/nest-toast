@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { BpmnContextService } from '../../services/bpmn-context.service';
 import type { StepHistoryEntry } from '../../interfaces/bpmn-context.interface';
 

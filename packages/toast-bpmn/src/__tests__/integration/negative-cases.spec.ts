@@ -145,6 +145,7 @@ describe('Negative Cases: Error Handling', () => {
         flows: [],
         startEvents: [],
         endEvents: [],
+        gateways: [],
       };
       const result = validator.validate(definition);
       expect(result.valid).toBe(false);

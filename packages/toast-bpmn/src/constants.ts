@@ -18,4 +18,6 @@ export const BPMN_EVENTS = {
   TASK_STARTED: 'bpmn.task.started',
   TASK_COMPLETED: 'bpmn.task.completed',
   TASK_FAILED: 'bpmn.task.failed',
+  CONTEXT_SERIALIZE: 'bpmn.context.serialize',
+  CONTEXT_DESERIALIZE: 'bpmn.context.deserialize',
 } as const;

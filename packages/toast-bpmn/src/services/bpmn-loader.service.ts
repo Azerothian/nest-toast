@@ -5,8 +5,11 @@ import { TOAST_BPMN_MODULE_OPTIONS } from '../constants';
 import { BpmnLoaderError } from '../errors/bpmn-loader.error';
 import type { ToastBpmnModuleOptions } from '../interfaces/bpmn-module-options.interface';
 import type { BpmnProcessDefinition } from '../interfaces/bpmn-process.interface';
+import type { BpmnGatewayDefinition, GatewayType } from '../interfaces/bpmn-process.interface';
 import type { BpmnTaskDefinition, BpmnTaskType } from '../interfaces/bpmn-task.interface';
 import type { BpmnSequenceFlow, BpmnStartEvent, BpmnEndEvent } from '../interfaces/bpmn-flow.interface';
+import type { ValidationResult } from '../interfaces/bpmn-validation.interface';
+import { BpmnValidatorService } from './bpmn-validator.service';
 
 @Injectable()
 export class BpmnLoaderService implements OnModuleInit {
@@ -15,12 +18,18 @@ export class BpmnLoaderService implements OnModuleInit {
 
   constructor(
     @Inject(TOAST_BPMN_MODULE_OPTIONS) @Optional() private readonly options?: ToastBpmnModuleOptions,
+    @Optional() private readonly validator?: BpmnValidatorService,
   ) {}
 
   async onModuleInit(): Promise<void> {
     await this.initModdle();
     if (this.options?.bpmnPath) {
       await this.loadDirectory(this.options.bpmnPath);
+    }
+    if (this.options?.validateOnLoad && this.validator) {
+      for (const definition of this.definitions.values()) {
+        this.validator.validateOrThrow(definition);
+      }
     }
   }
 
@@ -112,6 +121,17 @@ export class BpmnLoaderService implements OnModuleInit {
     return this.definitions.has(name);
   }
 
+  async validateFile(path: string): Promise<ValidationResult> {
+    if (!this.validator) {
+      throw new BpmnLoaderError('BpmnValidatorService is not available', path);
+    }
+    const xml = await readFile(path, 'utf-8');
+    const definition = await this.parseXml(xml, path);
+    // Remove from stored definitions since this is validate-only
+    this.definitions.delete(definition.name);
+    return this.validator.validate(definition);
+  }
+
   private async parseXml(xml: string, source?: string): Promise<BpmnProcessDefinition> {
     if (!this.moddle) {
       await this.initModdle();
@@ -142,106 +162,135 @@ export class BpmnLoaderService implements OnModuleInit {
       throw new BpmnLoaderError('BPMN file contains no process definitions', source);
     }
 
-    // Parse the first process (primary)
-    const process = processes[0];
-    const processName = process.id || process.name || 'unnamed';
+    // Iterate all processes, store each, return the first
+    let firstDefinition: BpmnProcessDefinition | undefined;
 
-    const tasks: BpmnTaskDefinition[] = [];
-    const flows: BpmnSequenceFlow[] = [];
-    const startEvents: BpmnStartEvent[] = [];
-    const endEvents: BpmnEndEvent[] = [];
+    for (const process of processes) {
+      const processName = process.id || process.name || 'unnamed';
 
-    // Extract toast:processConfig from extension elements if present
-    let processConfig: any = {};
-    if (process.extensionElements?.values) {
-      for (const ext of process.extensionElements.values) {
-        if (ext.$type === 'toast:ProcessConfig') {
-          processConfig = ext;
+      const tasks: BpmnTaskDefinition[] = [];
+      const flows: BpmnSequenceFlow[] = [];
+      const startEvents: BpmnStartEvent[] = [];
+      const endEvents: BpmnEndEvent[] = [];
+      const gateways: BpmnGatewayDefinition[] = [];
+
+      // Extract toast:processConfig from extension elements if present
+      let processConfig: any = {};
+      if (process.extensionElements?.values) {
+        for (const ext of process.extensionElements.values) {
+          if (ext.$type === 'toast:ProcessConfig') {
+            processConfig = ext;
+          }
         }
       }
-    }
 
-    const flowElements = process.flowElements || [];
-    for (const el of flowElements) {
-      switch (el.$type) {
-        case 'bpmn:StartEvent':
-          startEvents.push({
-            id: el.id,
-            name: el.name,
-            outgoing: (el.outgoing || []).map((f: any) => f.id || f),
-          });
-          break;
+      const flowElements = process.flowElements || [];
+      for (const el of flowElements) {
+        switch (el.$type) {
+          case 'bpmn:StartEvent':
+            startEvents.push({
+              id: el.id,
+              name: el.name,
+              outgoing: (el.outgoing || []).map((f: any) => f.id || f),
+            });
+            break;
 
-        case 'bpmn:EndEvent':
-          endEvents.push({
-            id: el.id,
-            name: el.name,
-            incoming: (el.incoming || []).map((f: any) => f.id || f),
-          });
-          break;
+          case 'bpmn:EndEvent':
+            endEvents.push({
+              id: el.id,
+              name: el.name,
+              incoming: (el.incoming || []).map((f: any) => f.id || f),
+            });
+            break;
 
-        case 'bpmn:SequenceFlow':
-          flows.push({
-            id: el.id,
-            name: el.name,
-            sourceRef: typeof el.sourceRef === 'string' ? el.sourceRef : el.sourceRef?.id,
-            targetRef: typeof el.targetRef === 'string' ? el.targetRef : el.targetRef?.id,
-            conditionExpression: el.conditionExpression?.body,
-          });
-          break;
+          case 'bpmn:SequenceFlow':
+            flows.push({
+              id: el.id,
+              name: el.name,
+              sourceRef: typeof el.sourceRef === 'string' ? el.sourceRef : el.sourceRef?.id,
+              targetRef: typeof el.targetRef === 'string' ? el.targetRef : el.targetRef?.id,
+              conditionExpression: el.conditionExpression?.body,
+            });
+            break;
 
-        case 'bpmn:ServiceTask':
-        case 'bpmn:UserTask':
-        case 'bpmn:ScriptTask':
-        case 'bpmn:SendTask':
-        case 'bpmn:ReceiveTask':
-        case 'bpmn:ManualTask':
-        case 'bpmn:BusinessRuleTask':
-        case 'bpmn:Task': {
-          const taskType = this.mapTaskType(el.$type);
-          let taskConfig: any = {};
-          if (el.extensionElements?.values) {
-            for (const ext of el.extensionElements.values) {
-              if (ext.$type === 'toast:TaskConfig') {
-                taskConfig = ext;
+          case 'bpmn:ExclusiveGateway':
+          case 'bpmn:ParallelGateway':
+          case 'bpmn:InclusiveGateway': {
+            const gatewayTypeMap: Record<string, GatewayType> = {
+              'bpmn:ExclusiveGateway': 'exclusive',
+              'bpmn:ParallelGateway': 'parallel',
+              'bpmn:InclusiveGateway': 'inclusive',
+            };
+            gateways.push({
+              id: el.id,
+              name: el.name,
+              type: gatewayTypeMap[el.$type],
+              incoming: (el.incoming || []).map((f: any) => f.id || f),
+              outgoing: (el.outgoing || []).map((f: any) => f.id || f),
+              default: el.default?.id || el.default,
+            });
+            break;
+          }
+
+          case 'bpmn:ServiceTask':
+          case 'bpmn:UserTask':
+          case 'bpmn:ScriptTask':
+          case 'bpmn:SendTask':
+          case 'bpmn:ReceiveTask':
+          case 'bpmn:ManualTask':
+          case 'bpmn:BusinessRuleTask':
+          case 'bpmn:Task': {
+            const taskType = this.mapTaskType(el.$type);
+            let taskConfig: any = {};
+            if (el.extensionElements?.values) {
+              for (const ext of el.extensionElements.values) {
+                if (ext.$type === 'toast:TaskConfig') {
+                  taskConfig = ext;
+                }
               }
             }
+            tasks.push({
+              id: el.id,
+              name: el.name || el.id,
+              type: taskType,
+              chainEventName: taskConfig.chainEventName,
+              description: taskConfig.description,
+              timeout: taskConfig.timeout,
+              inputType: taskConfig.inputType,
+              outputType: taskConfig.outputType,
+              incoming: (el.incoming || []).map((f: any) => f.id || f),
+              outgoing: (el.outgoing || []).map((f: any) => f.id || f),
+              extensionElements: taskConfig,
+            });
+            break;
           }
-          tasks.push({
-            id: el.id,
-            name: el.name || el.id,
-            type: taskType,
-            chainEventName: taskConfig.chainEventName,
-            description: taskConfig.description,
-            timeout: taskConfig.timeout,
-            inputType: taskConfig.inputType,
-            outputType: taskConfig.outputType,
-            extensionElements: taskConfig,
-          });
-          break;
         }
-        // Gateways and other elements can be added later
+      }
+
+      const definition: BpmnProcessDefinition = {
+        name: processName,
+        description: processConfig.description || process.name,
+        version: processConfig.version,
+        retryPolicy: processConfig.retryMaxRetries ? {
+          maxRetries: processConfig.retryMaxRetries,
+          backoffMs: processConfig.retryBackoffMs,
+          backoffMultiplier: processConfig.retryBackoffMultiplier,
+        } : undefined,
+        tasks,
+        flows,
+        startEvents,
+        endEvents,
+        gateways,
+        source,
+      };
+
+      this.definitions.set(processName, definition);
+      if (!firstDefinition) {
+        firstDefinition = definition;
       }
     }
 
-    const definition: BpmnProcessDefinition = {
-      name: processName,
-      description: processConfig.description || process.name,
-      version: processConfig.version,
-      retryPolicy: processConfig.retryMaxRetries ? {
-        maxRetries: processConfig.retryMaxRetries,
-        backoffMs: processConfig.retryBackoffMs,
-        backoffMultiplier: processConfig.retryBackoffMultiplier,
-      } : undefined,
-      tasks,
-      flows,
-      startEvents,
-      endEvents,
-      source,
-    };
-
-    this.definitions.set(processName, definition);
-    return definition;
+    return firstDefinition!;
   }
 
   private mapTaskType(bpmnType: string): BpmnTaskType {

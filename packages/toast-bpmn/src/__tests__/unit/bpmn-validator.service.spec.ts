@@ -19,6 +19,8 @@ function makeValidDefinition(): BpmnProcessDefinition {
         name: 'My Task',
         type: 'serviceTask',
         chainEventName: 'myEvent',
+        incoming: [],
+        outgoing: [],
       },
     ],
     flows: [
@@ -27,6 +29,7 @@ function makeValidDefinition(): BpmnProcessDefinition {
     ],
     startEvents: [{ id: 'start1', name: 'Start', outgoing: ['flow1'] }],
     endEvents: [{ id: 'end1', name: 'End', incoming: ['flow2'] }],
+    gateways: [],
   };
 }
 
@@ -91,8 +94,8 @@ describe('BpmnValidatorService', () => {
     it('errors on duplicate task IDs', () => {
       const def = makeValidDefinition();
       def.tasks = [
-        { id: 'task1', name: 'Task A', type: 'serviceTask', chainEventName: 'evA' },
-        { id: 'task1', name: 'Task B', type: 'serviceTask', chainEventName: 'evB' },
+        { id: 'task1', name: 'Task A', type: 'serviceTask', chainEventName: 'evA', incoming: [], outgoing: [] },
+        { id: 'task1', name: 'Task B', type: 'serviceTask', chainEventName: 'evB', incoming: [], outgoing: [] },
       ];
       const result = service.validate(def);
       expect(result.valid).toBe(false);

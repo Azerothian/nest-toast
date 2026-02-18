@@ -15,6 +15,9 @@ export interface BpmnTaskOptions {
   description?: string;
   timeout?: number;
   retryPolicy?: RetryPolicy;
+  inputType?: string;
+  outputType?: string;
+  retryable?: boolean;
 }
 
 export interface BpmnTaskDefinition {
@@ -27,5 +30,7 @@ export interface BpmnTaskDefinition {
   retryPolicy?: RetryPolicy;
   inputType?: string;
   outputType?: string;
+  incoming: string[];
+  outgoing: string[];
   extensionElements?: Record<string, unknown>;
 }

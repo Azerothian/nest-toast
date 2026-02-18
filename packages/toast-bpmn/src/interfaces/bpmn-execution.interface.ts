@@ -8,4 +8,10 @@ export interface ProcessStartResult {
 
 export interface AsyncExecutionResult extends ProcessStartResult {
   messageId?: string; // BullMQ job ID for distributed mode
+  startedAt: Date;
+}
+
+export interface ProcessStatusInfo {
+  status: ProcessStatus;
+  currentStep?: string;
 }

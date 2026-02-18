@@ -3,6 +3,9 @@ export interface TimerTriggerOptions {
   interval?: number; // ms
   delay?: number; // ms
   processName: string;
+  timezone?: string;
+  startDate?: Date | string;
+  endDate?: Date | string;
 }
 
 export interface RegisterTypeOptions {
