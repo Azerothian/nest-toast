@@ -1,0 +1,42 @@
+{
+  "name": "Toast",
+  "uri": "http://azerothian.io/schema/toast-bpmn",
+  "prefix": "toast",
+  "xml": {
+    "tagAlias": "lowerCase"
+  },
+  "types": [
+    {
+      "name": "TypeConstraint",
+      "superClass": ["Element"],
+      "properties": [
+        { "name": "typeName", "type": "String", "isAttr": true },
+        { "name": "required", "type": "Boolean", "isAttr": true, "default": false }
+      ]
+    },
+    {
+      "name": "TaskConfig",
+      "superClass": ["Element"],
+      "properties": [
+        { "name": "chainEventName", "type": "String", "isAttr": true },
+        { "name": "inputType", "type": "String", "isAttr": true },
+        { "name": "outputType", "type": "String", "isAttr": true },
+        { "name": "timeout", "type": "Integer", "isAttr": true },
+        { "name": "typeConstraints", "type": "TypeConstraint", "isMany": true }
+      ]
+    },
+    {
+      "name": "ProcessConfig",
+      "superClass": ["Element"],
+      "properties": [
+        { "name": "version", "type": "String", "isAttr": true },
+        { "name": "description", "type": "String", "isAttr": true },
+        { "name": "retryMaxRetries", "type": "Integer", "isAttr": true },
+        { "name": "retryBackoffMs", "type": "Integer", "isAttr": true },
+        { "name": "retryBackoffMultiplier", "type": "Real", "isAttr": true }
+      ]
+    }
+  ],
+  "emumerations": [],
+  "associations": []
+}
