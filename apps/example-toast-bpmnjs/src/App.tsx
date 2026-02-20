@@ -3,7 +3,7 @@ import { BpmnEditor } from '@azerothian/toast-bpmnjs';
 import 'bpmn-js/dist/assets/diagram-js.css';
 import 'bpmn-js/dist/assets/bpmn-js.css';
 import 'bpmn-js/dist/assets/bpmn-font/css/bpmn.css';
-import 'bpmn-js-properties-panel/dist/assets/properties-panel.css';
+import '@bpmn-io/properties-panel/dist/assets/properties-panel.css';
 import { useDiagram } from './hooks/useDiagram';
 import { apiPlugin } from './plugins/api-plugin';
 

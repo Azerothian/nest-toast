@@ -11,8 +11,10 @@
   },
   "dependencies": {
     "@azerothian/toast-bpmnjs": "workspace:*",
+    "@bpmn-io/properties-panel": "^3.0.0",
     "@tanstack/react-query": "^5.0.0",
     "bpmn-js": "^17.0.0",
+    "bpmn-js-properties-panel": "^5.0.0",
     "bpmn-moddle": "^9.0.0",
     "react": "^18.0.0",
     "react-dom": "^18.0.0"
