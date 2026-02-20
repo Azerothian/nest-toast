@@ -1,8 +1,7 @@
-import { defineConfig } from 'tsup';
+import { defineConfig, type Options } from 'tsup';
 
-export default defineConfig({
+const shared: Options = {
   entry: ['src/index.ts'],
-  format: ['esm', 'cjs'],
   dts: true,
   clean: true,
   splitting: false,
@@ -15,4 +14,18 @@ export default defineConfig({
     '@bpmn-io/properties-panel',
     'bpmn-moddle',
   ],
-});
+};
+
+export default defineConfig([
+  {
+    ...shared,
+    format: 'esm',
+    banner: { js: "import React from 'react';" },
+  },
+  {
+    ...shared,
+    format: 'cjs',
+    banner: { js: "const React = require('react');" },
+    dts: false,
+  },
+]);

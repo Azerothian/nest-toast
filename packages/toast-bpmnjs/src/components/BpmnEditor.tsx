@@ -9,6 +9,21 @@ import { toastPropertiesProviderModule } from '../extensions/toast-properties-pr
 import toastExtension from '../schema/toast-extension.json';
 import type { BpmnEditorProps } from '../types';
 
+function createDebounce() {
+  return function debounce(fn: (...args: unknown[]) => void) {
+    let timeout: ReturnType<typeof setTimeout>;
+    return function (this: unknown, ...args: unknown[]) {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => fn.apply(this, args), 300);
+    };
+  };
+}
+
+const debounceModule = {
+  debounceInput: ['factory', createDebounce],
+  debounce: ['factory', createDebounce],
+};
+
 export function BpmnEditor({
   xml,
   onXmlChange,
@@ -22,6 +37,7 @@ export function BpmnEditor({
   const canvasRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const modelerRef = useRef<any>(null);
+  const initialXmlRef = useRef(xml);
 
   useEffect(() => {
     if (!canvasRef.current || !panelRef.current) return;
@@ -38,14 +54,15 @@ export function BpmnEditor({
         BpmnPropertiesPanelModule,
         BpmnPropertiesProviderModule,
         toastPropertiesProviderModule,
+        debounceModule,
       ],
     });
 
     modelerRef.current = modeler;
 
     const initDiagram = async () => {
-      if (xml) {
-        await modeler.importXML(xml);
+      if (initialXmlRef.current) {
+        await modeler.importXML(initialXmlRef.current);
       } else {
         await modeler.createDiagram();
       }
@@ -81,7 +98,8 @@ export function BpmnEditor({
   }, []);
 
   useEffect(() => {
-    if (!modelerRef.current || xml === undefined) return;
+    if (!modelerRef.current || xml === undefined || xml === initialXmlRef.current) return;
+    initialXmlRef.current = xml;
     modelerRef.current.importXML(xml).catch(console.error);
   }, [xml]);
 
