@@ -42,6 +42,10 @@ export function BpmnEditor({
   useEffect(() => {
     if (!canvasRef.current || !panelRef.current) return;
 
+    const pluginModule = plugin ? {
+      toastPlugin: ['value', plugin],
+    } : {};
+
     const modeler = new Modeler({
       container: canvasRef.current,
       propertiesPanel: {
@@ -55,6 +59,7 @@ export function BpmnEditor({
         BpmnPropertiesProviderModule,
         toastPropertiesProviderModule,
         debounceModule,
+        pluginModule,
       ],
     });
 

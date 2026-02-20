@@ -1,5 +1,6 @@
-import { TextFieldEntry, CheckboxEntry, isTextFieldEntryEdited, isCheckboxEntryEdited } from '@bpmn-io/properties-panel';
+import { SelectEntry, TextFieldEntry, CheckboxEntry, isSelectEntryEdited, isTextFieldEntryEdited, isCheckboxEntryEdited } from '@bpmn-io/properties-panel';
 import { useService } from 'bpmn-js-properties-panel';
+import { useState, useEffect } from '@bpmn-io/properties-panel/preact/hooks';
 
 function getOrCreateTaskConfig(element: any, bpmnFactory: any, commandStack: any) {
   const bo = element.businessObject;
@@ -15,10 +16,31 @@ function getOrCreateTaskConfig(element: any, bpmnFactory: any, commandStack: any
   return taskConfig;
 }
 
+type SelectOption = { value: string; label: string };
+
+const EMPTY_OPTION: SelectOption = { value: '', label: '<none>' };
+
 function ChainEventNameEntry({ element, id }: { element: any; id: string }) {
   const commandStack = useService('commandStack');
   const bpmnFactory = useService('bpmnFactory');
   const translate = useService('translate');
+
+  let toastPlugin: any = null;
+  try {
+    toastPlugin = useService('toastPlugin');
+  } catch {
+    // plugin not registered
+  }
+
+  const [options, setOptions] = useState<SelectOption[]>([EMPTY_OPTION]);
+
+  useEffect(() => {
+    if (toastPlugin?.getChainEventNames) {
+      toastPlugin.getChainEventNames().then((names: string[]) => {
+        setOptions([EMPTY_OPTION, ...names.map((n) => ({ value: n, label: n }))]);
+      });
+    }
+  }, [toastPlugin]);
 
   const getValue = () => {
     const taskConfig = element.businessObject.get('toast:taskConfig');
@@ -34,13 +56,13 @@ function ChainEventNameEntry({ element, id }: { element: any; id: string }) {
     });
   };
 
-  return TextFieldEntry({
+  return SelectEntry({
     element,
     id,
     label: translate('Chain Event Name'),
     getValue,
     setValue,
-    debounce: useService('debounce'),
+    getOptions: () => options,
   });
 }
 
@@ -48,6 +70,23 @@ function InputTypeEntry({ element, id }: { element: any; id: string }) {
   const commandStack = useService('commandStack');
   const bpmnFactory = useService('bpmnFactory');
   const translate = useService('translate');
+
+  let toastPlugin: any = null;
+  try {
+    toastPlugin = useService('toastPlugin');
+  } catch {
+    // plugin not registered
+  }
+
+  const [options, setOptions] = useState<SelectOption[]>([EMPTY_OPTION]);
+
+  useEffect(() => {
+    if (toastPlugin?.getTypeNames) {
+      toastPlugin.getTypeNames().then((names: string[]) => {
+        setOptions([EMPTY_OPTION, ...names.map((n) => ({ value: n, label: n }))]);
+      });
+    }
+  }, [toastPlugin]);
 
   const getValue = () => {
     const taskConfig = element.businessObject.get('toast:taskConfig');
@@ -63,13 +102,13 @@ function InputTypeEntry({ element, id }: { element: any; id: string }) {
     });
   };
 
-  return TextFieldEntry({
+  return SelectEntry({
     element,
     id,
     label: translate('Input Type'),
     getValue,
     setValue,
-    debounce: useService('debounce'),
+    getOptions: () => options,
   });
 }
 
@@ -77,6 +116,23 @@ function OutputTypeEntry({ element, id }: { element: any; id: string }) {
   const commandStack = useService('commandStack');
   const bpmnFactory = useService('bpmnFactory');
   const translate = useService('translate');
+
+  let toastPlugin: any = null;
+  try {
+    toastPlugin = useService('toastPlugin');
+  } catch {
+    // plugin not registered
+  }
+
+  const [options, setOptions] = useState<SelectOption[]>([EMPTY_OPTION]);
+
+  useEffect(() => {
+    if (toastPlugin?.getTypeNames) {
+      toastPlugin.getTypeNames().then((names: string[]) => {
+        setOptions([EMPTY_OPTION, ...names.map((n) => ({ value: n, label: n }))]);
+      });
+    }
+  }, [toastPlugin]);
 
   const getValue = () => {
     const taskConfig = element.businessObject.get('toast:taskConfig');
@@ -92,13 +148,13 @@ function OutputTypeEntry({ element, id }: { element: any; id: string }) {
     });
   };
 
-  return TextFieldEntry({
+  return SelectEntry({
     element,
     id,
     label: translate('Output Type'),
     getValue,
     setValue,
-    debounce: useService('debounce'),
+    getOptions: () => options,
   });
 }
 
@@ -184,17 +240,17 @@ export function taskConfigEntries(element: any) {
     {
       id: 'toast-chainEventName',
       component: ChainEventNameEntry,
-      isEdited: isTextFieldEntryEdited,
+      isEdited: isSelectEntryEdited,
     },
     {
       id: 'toast-inputType',
       component: InputTypeEntry,
-      isEdited: isTextFieldEntryEdited,
+      isEdited: isSelectEntryEdited,
     },
     {
       id: 'toast-outputType',
       component: OutputTypeEntry,
-      isEdited: isTextFieldEntryEdited,
+      isEdited: isSelectEntryEdited,
     },
     {
       id: 'toast-timeout',
